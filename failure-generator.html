@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ham Radio Operator Failures</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        h1 {
+            color: #337ab7;
+        }
+        #failure-message {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            width: 300px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #5bc0de;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #31b0d5;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Failure Generator</h1>
+    <button onclick="generateFailure()">Generate Failure</button>
+
+    <div id="failure-message"></div>
+
+    <script>
+        function generateFailure() {
+            const failures = [
+                "Power supply failure",
+                "Antenna disconnection",
+                "Radio overheating",
+                "Signal interference from nearby electronics - 15 Minutes",
+                "Battery depletion",
+                "Microphone malfunction",
+                "Medical Emergency",
+                "Operator Bathroom break - 10 minutes",
+                "Unexpected software glitch in digital mode",
+                "Complete Antenna failure"
+            ];
+
+            const randomIndex = Math.floor(Math.random() * failures.length);
+            const failureMessage = failures[randomIndex];
+
+            const failureDiv = document.getElementById('failure-message');
+            failureDiv.textContent = `Failure: ${failureMessage}`;
+        }
+    </script>
+
+</body>
+</html>

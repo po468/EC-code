@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resources</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+        h1 {
+            color: #d9534f;
+        }
+        #resource-list {
+            margin-top: 20px;
+            padding: 0;
+            list-style-type: none;
+        }
+        li {
+            background: #fff;
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Resources</h1>
+    <button onclick="generateResources()">Generate Resources</button>
+
+    <ul id="resource-list"></ul>
+
+    <script>
+        function generateResources() {
+            const resources = [
+                "Blankets", 
+                "Water Bottles", 
+                "First Aid Kits", 
+                "Non-perishable Food", 
+                "Cots", 
+                "Hygiene Kits", 
+                "Face Masks", 
+                "Towels", 
+                "Flashlights", 
+                "Batteries"
+            ];
+
+            const resourceList = document.getElementById('resource-list');
+            resourceList.innerHTML = ""; // Clear previous list
+
+            resources.forEach(resource => {
+                let value;
+                // 50% chance the value will be under 75
+                if (Math.random() < 0.5) {
+                    value = Math.floor(Math.random() * 75) + 1; // Random value between 1 and 74
+                } else {
+                    value = Math.floor(Math.random() * (200 - 75 + 1)) + 75; // Random value between 75 and 200
+                }
+                
+                const listItem = document.createElement('li');
+                listItem.textContent = `${resource}: ${value} units`;
+                resourceList.appendChild(listItem);
+            });
+        }
+    </script>
+<h2>The goal of the exercise is to get your resources to at 100 or above by requesting them from other stations.<br>
+Use official forms and messages.</h2>
+</body>
+</html>
