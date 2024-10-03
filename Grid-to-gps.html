@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maidenhead Grid Locator Converter</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #f4f4f9;
+    }
+    .container {
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    input, button {
+      padding: 10px;
+      margin: 10px 0;
+      font-size: 1rem;
+    }
+    #result {
+      font-size: 1.2rem;
+      margin-top: 20px;
+    }
+    #mapLink {
+      display: block;
+      margin-top: 10px;
+      font-size: 1rem;
+      text-decoration: none;
+      color: #4285F4;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Maidenhead Grid Locator Converter</h1>
+    <input type="text" id="gridInput" placeholder="Enter grid (e.g. EN90th)" />
+    <button onclick="convertGrid()">Convert to Lat/Long</button>
+    <div id="result"></div>
+    <a id="mapLink" target="_blank"></a>
+  </div>
+
+  <script>
+    // Function to convert Maidenhead grid to lat/long and generate Google Maps link
+    function convertGrid() {
+      const grid = document.getElementById('gridInput').value.trim().toUpperCase();
+      const resultDiv = document.getElementById('result');
+      const mapLink = document.getElementById('mapLink');
+
+      if (!grid.match(/^[A-R]{2}\d{2}[A-X]{2}$/)) {
+        resultDiv.textContent = 'Invalid grid format. Please enter a valid Maidenhead grid.';
+        mapLink.style.display = 'none'; // Hide the link if invalid
+        return;
+      }
+
+      const lat = ((grid.charCodeAt(1) - 65) * 10) - 90 + (parseInt(grid.charAt(3)) * 1) + ((grid.charCodeAt(5) - 65) / 24) + 1/48;
+      const lon = ((grid.charCodeAt(0) - 65) * 20) - 180 + (parseInt(grid.charAt(2)) * 2) + ((grid.charCodeAt(4) - 65) / 12) + 1/24;
+
+      resultDiv.textContent = `Latitude: ${lat.toFixed(6)}, Longitude: ${lon.toFixed(6)}`;
+      
+      // Create Google Maps link
+      const mapsUrl = `https://www.google.com/maps?q=${lat.toFixed(6)},${lon.toFixed(6)}`;
+      mapLink.href = mapsUrl;
+      mapLink.textContent = 'View on Google Maps';
+      mapLink.style.display = 'block'; // Show the link
+    }
+  </script>
+</body>
+</html>
