@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maidenhead Grid to GPS Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+        }
+        input, button {
+            padding: 10px;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Maidenhead Grid to GPS Converter</h1>
+    <p>Enter a 6-10 character Maidenhead Grid Square:</p>
+    <input type="text" id="gridInput" placeholder="e.g. FN31pr" maxlength="10">
+    <button onclick="convertGrid()">Convert to GPS</button>
+
+    <div id="result"></div>
+    
+    <script>
+        function gridToLatLon(grid) {
+            const A = 'A'.charCodeAt(0);
+            const a = 'a'.charCodeAt(0);
+            
+            // Calculate longitude
+            let lon = (grid.charCodeAt(0) - A) * 20 - 180;
+            lon += (grid.charCodeAt(2) - '0'.charCodeAt(0)) * 2;
+            if (grid.length > 4) lon += (grid.charCodeAt(4) - a) * 5 / 60;
+            if (grid.length > 6) lon += (grid.charCodeAt(6) - '0'.charCodeAt(0)) * 0.5 / 60;
+
+            // Calculate latitude
+            let lat = (grid.charCodeAt(1) - A) * 10 - 90;
+            lat += (grid.charCodeAt(3) - '0'.charCodeAt(0));
+            if (grid.length > 5) lat += (grid.charCodeAt(5) - a) * 2.5 / 60;
+            if (grid.length > 7) lat += (grid.charCodeAt(7) - '0'.charCodeAt(0)) * 0.25 / 60;
+
+            return [lat, lon];
+        }
+
+        function convertGrid() {
+            const grid = document.getElementById('gridInput').value.trim();
+            if (grid.length < 4 || grid.length > 10) {
+                document.getElementById('result').innerHTML = 'Invalid grid square length!';
+                return;
+            }
+
+            const [lat, lon] = gridToLatLon(grid);
+
+            const gpsCoords = `Latitude: ${lat.toFixed(6)}, Longitude: ${lon.toFixed(6)}`;
+            const googleMapsLink = `https://www.google.com/maps?q=${lat},${lon}`;
+
+            document.getElementById('result').innerHTML = `
+                <p>${gpsCoords}</p>
+                <a href="${googleMapsLink}" target="_blank">View on Google Maps</a>
+            `;
+        }
+    </script>
+</body>
+</html>
