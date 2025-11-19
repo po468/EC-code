@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ham Radio Net Control Operations</title>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+        #header {
+            flex-shrink: 0;
+            background: white;
+            z-index: 1;
+            padding: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #content {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        button { margin-top: 5px; margin-right: 10px; }
+        #comments { width: 100%; }
+        #callsign { text-transform: uppercase; }
+        h1 { margin: 0 0 5px 0; }
+        h2 { margin: 5px 0; }
+        label { display: block; margin-bottom: 2px; }
+        input { margin-bottom: 5px; }
+        section { margin-bottom: 5px; }
+        @media print {
+            #netSetup, #addCheckin, #dataManagement, th:last-child, td:last-child { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>Ham Radio Net Control Operations</h1>
+
+        <section id="netSetup">
+            <label for="nco">Net Control Operator:</label>
+            <input type="text" id="nco" placeholder="Enter your callsign">
+            <button onclick="startNet()">Start Net</button>
+            <button onclick="stopNet()" disabled id="stopButton">Stop Net</button>
+            <p id="netStatus">Net not started yet.</p>
+        </section>
+
+        <section id="addCheckin">
+            <h2>Add/Check-in</h2>
+            <label for="callsign">Callsign:</label>
+            <input type="text" id="callsign" placeholder="e.g., W1AW">
+            <label for="name">Name:</label>
+            <input type="text" id="name" placeholder="e.g., John Doe">
+            <label for="comments">Location/Comments:</label>
+            <input type="text" id="comments" placeholder="e.g., Grid Square FN31, Strong signal" maxlength="250">
+            <button id="addButton" onclick="addOrUpdateCheckIn()">Add Check-in</button>
+        </section>
+    </div>
+
+    <div id="content">
+        <section>
+            <h2>Check-ins</h2>
+            <table id="checkinsTable">
+                <thead>
+                    <tr>
+                        <th>Callsign</th>
+                        <th>Name</th>
+                        <th>Location/Comments</th>
+                        <th>Check-in Time</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <p>Total Check-ins: <span id="totalCheckins">0</span></p>
+            <p>Total Operator Time: <span id="operatorTime">00:00:00</span></p>
+            <p>Net Duration: <span id="netDuration">0</span> minutes</p>
+        </section>
+
+        <section id="dataManagement">
+            <h2>Data Management</h2>
+            <button onclick="exportData()">Export Data (JSON)</button>
+            <input type="file" id="importFile" accept=".json">
+            <button onclick="importData()">Import Data (JSON)</button>
+            <button onclick="printLog()">Print Log</button>
+        </section>
+    </div>
+
+    <script>
+        let startTime = null;
+        let endTime = null;
+        let checkins = [];
+        let timerInterval = null;
+        let nco = '';
+        let editingIndex = -1;
+        let frozenCheckinsCount = 0;
+
+        function startNet() {
+            nco = document.getElementById('nco').value.trim().toUpperCase();
+            if (!nco) {
+                alert('Please enter the Net Control Operator callsign.');
+                return;
+            }
+            document.getElementById('nco').value = nco; // Uppercase NCO
+            startTime = new Date();
+            document.getElementById('netStatus').innerText = `Net started at ${startTime.toLocaleString()} by ${nco}.`;
+            document.getElementById('stopButton').disabled = false;
+
+            // Add NCO as the first check-in
+            const ncoCheckin = {
+                callsign: nco,
+                name: '',
+                comments: 'Net Control Operator',
+                time: startTime.toLocaleTimeString()
+            };
+            checkins.push(ncoCheckin);
+            renderTable();
+            updateTotals();
+
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateOperatorTime, 1000);
+        }
+
+        function stopNet() {
+            if (!startTime) return;
+            endTime = new Date();
+            clearInterval(timerInterval);
+            timerInterval = null;
+            frozenCheckinsCount = checkins.length;
+            document.getElementById('netStatus').innerText = `Net started at ${startTime.toLocaleString()} by ${nco}. Ended at ${endTime.toLocaleString()}.`;
+            document.getElementById('stopButton').disabled = true;
+            updateOperatorTime(); // Final update
+        }
+
+        function isDuplicateCallsign(callsign, excludeIndex = -1) {
+            return checkins.some((checkin, index) => index !== excludeIndex && checkin.callsign.toLowerCase() === callsign.toLowerCase());
+        }
+
+        function addOrUpdateCheckIn() {
+            if (!startTime) {
+                alert('Please start the net first.');
+                return;
+            }
+            let callsign = document.getElementById('callsign').value.trim().toUpperCase();
+            const name = document.getElementById('name').value.trim();
+            const comments = document.getElementById('comments').value.trim();
+
+            if (!callsign) {
+                alert('Callsign is required.');
+                return;
+            }
+
+            if (isDuplicateCallsign(callsign, editingIndex)) {
+                alert('Duplicate callsign detected. Please use a unique callsign.');
+                return;
+            }
+
+            const now = new Date();
+            const checkin = {
+                callsign,
+                name,
+                comments,
+                time: now.toLocaleTimeString()
+            };
+
+            if (editingIndex !== -1) {
+                if (endTime) {
+                    alert('Net has ended. Cannot update check-ins.');
+                    return;
+                }
+                // Update existing, but keep original time
+                checkin.time = checkins[editingIndex].time;
+                checkins[editingIndex] = checkin;
+                editingIndex = -1;
+                document.getElementById('addButton').innerText = 'Add Check-in';
+            } else {
+                // Allow adding even after end (late check-in)
+                checkins.push(checkin);
+            }
+
+            renderTable();
+            updateTotals();
+
+            // Clear input fields and focus on callsign
+            clearInputs();
+            document.getElementById('callsign').focus();
+        }
+
+        function editCheckIn(index) {
+            if (endTime) {
+                alert('Net has ended. Cannot edit check-ins.');
+                return;
+            }
+            const checkin = checkins[index];
+            document.getElementById('callsign').value = checkin.callsign;
+            document.getElementById('name').value = checkin.name;
+            document.getElementById('comments').value = checkin.comments;
+            document.getElementById('addButton').innerText = 'Update Check-in';
+            editingIndex = index;
+            document.getElementById('callsign').focus(); // Focus on callsign when editing
+        }
+
+        function deleteCheckIn(index) {
+            if (endTime) {
+                alert('Net has ended. Cannot delete check-ins.');
+                return;
+            }
+            if (confirm('Are you sure you want to delete this check-in?')) {
+                checkins.splice(index, 1);
+                renderTable();
+                updateTotals();
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('checkinsTable').querySelector('tbody');
+            tbody.innerHTML = '';
+            checkins.forEach((checkin, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${checkin.callsign}</td>
+                    <td>${checkin.name}</td>
+                    <td>${checkin.comments}</td>
+                    <td>${checkin.time}</td>
+                    <td>
+                        <button onclick="editCheckIn(${index})">Edit</button>
+                        <button onclick="deleteCheckIn(${index})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function clearInputs() {
+            document.getElementById('callsign').value = '';
+            document.getElementById('name').value = '';
+            document.getElementById('comments').value = '';
+        }
+
+        function updateTotals() {
+            document.getElementById('totalCheckins').innerText = checkins.length;
+            updateOperatorTime();
+        }
+
+        function updateOperatorTime() {
+            if (!startTime) return;
+            const referenceTime = endTime || new Date();
+            const diffSeconds = Math.floor((referenceTime - startTime) / 1000);
+            const effectiveCount = endTime ? frozenCheckinsCount : checkins.length;
+            const totalSeconds = effectiveCount * diffSeconds;
+            const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+            const mins = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+            const secs = (totalSeconds % 60).toString().padStart(2, '0');
+            document.getElementById('operatorTime').innerText = `${hours}:${mins}:${secs}`;
+
+            const netMinutes = Math.floor(diffSeconds / 60);
+            document.getElementById('netDuration').innerText = netMinutes;
+        }
+
+        function exportData() {
+            const data = {
+                nco,
+                startTime: startTime ? startTime.toISOString() : null,
+                endTime: endTime ? endTime.toISOString() : null,
+                frozenCheckinsCount,
+                checkins
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'net_data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importData() {
+            const fileInput = document.getElementById('importFile');
+            if (!fileInput.files.length) {
+                alert('Please select a JSON file to import.');
+                return;
+            }
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    nco = data.nco || '';
+                    startTime = data.startTime ? new Date(data.startTime) : null;
+                    endTime = data.endTime ? new Date(data.endTime) : null;
+                    frozenCheckinsCount = data.frozenCheckinsCount || 0;
+                    checkins = data.checkins || [];
+                    
+                    // For backward compatibility if location exists
+                    checkins = checkins.map(checkin => {
+                        if (checkin.location) {
+                            checkin.comments = (checkin.location + ' ' + (checkin.comments || '')).trim();
+                            delete checkin.location;
+                        }
+                        return checkin;
+                    });
+
+                    document.getElementById('nco').value = nco;
+                    if (startTime) {
+                        document.getElementById('stopButton').disabled = !!endTime;
+                        let status = `Net started at ${startTime.toLocaleString()} by ${nco}.`;
+                        if (endTime) {
+                            status += ` Ended at ${endTime.toLocaleString()}.`;
+                        }
+                        document.getElementById('netStatus').innerText = status;
+                        if (!endTime) {
+                            timerInterval = setInterval(updateOperatorTime, 1000);
+                        }
+                    } else {
+                        document.getElementById('netStatus').innerText = 'Net not started yet.';
+                        document.getElementById('stopButton').disabled = true;
+                    }
+                    
+                    renderTable();
+                    updateTotals();
+                    alert('Data imported successfully.');
+                } catch (err) {
+                    alert('Error importing data: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function printLog() {
+            window.print();
+        }
+    </script>
+</body>
+</html>
