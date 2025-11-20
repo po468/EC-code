@@ -35,6 +35,9 @@
         label { display: block; margin-bottom: 2px; }
         input { margin-bottom: 5px; }
         section { margin-bottom: 5px; }
+        .inline-label { display: inline; margin-left: 10px; margin-right: 5px; }
+        #startButton { background-color: green; color: white; }
+        #stopButton { background-color: red; color: white; }
         @media print {
             #netSetup, #addCheckin, #dataManagement, th:last-child, td:last-child { display: none; }
         }
@@ -42,13 +45,19 @@
 </head>
 <body>
     <div id="header">
-        <h1>Ham Radio Net Control Operations</h1>
+        <h1>Ham Radio Net Control Operations - Version 6</h1>
 
         <section id="netSetup">
             <label for="nco">Net Control Operator:</label>
             <input type="text" id="nco" placeholder="Enter your callsign">
-            <button onclick="startNet()">Start Net</button>
+            <button id="startButton" onclick="startNet()">Start Net</button>
+            <label class="inline-label" for="startTimeInput">Edit Start Time:</label>
+            <input type="datetime-local" id="startTimeInput" disabled>
+            <button onclick="updateStartTime()" disabled id="updateStartButton">Update Start</button>
             <button onclick="stopNet()" disabled id="stopButton">Stop Net</button>
+            <label class="inline-label" for="endTimeInput">Edit End Time:</label>
+            <input type="datetime-local" id="endTimeInput" disabled>
+            <button onclick="updateEndTime()" disabled id="updateEndButton">Update End</button>
             <p id="netStatus">Net not started yet.</p>
         </section>
 
@@ -73,14 +82,13 @@
                         <th>Callsign</th>
                         <th>Name</th>
                         <th>Location/Comments</th>
-                        <th>Check-in Time</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody></tbody>
             </table>
             <p>Total Check-ins: <span id="totalCheckins">0</span></p>
-            <p>Total Operator Time: <span id="operatorTime">00:00:00</span></p>
+            <p>Total Operator Time (hours:minutes): <span id="operatorTime">00:00:00</span></p>
             <p>Net Duration: <span id="netDuration">0</span> minutes</p>
         </section>
 
@@ -100,7 +108,15 @@
         let timerInterval = null;
         let nco = '';
         let editingIndex = -1;
-        let frozenCheckinsCount = 0;
+
+        function formatLocalDateTime(date) {
+            const year = date.getFullYear();
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const day = date.getDate().toString().padStart(2, '0');
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
 
         function startNet() {
             nco = document.getElementById('nco').value.trim().toUpperCase();
@@ -113,12 +129,15 @@
             document.getElementById('netStatus').innerText = `Net started at ${startTime.toLocaleString()} by ${nco}.`;
             document.getElementById('stopButton').disabled = false;
 
+            document.getElementById('startTimeInput').value = formatLocalDateTime(startTime);
+            document.getElementById('startTimeInput').disabled = false;
+            document.getElementById('updateStartButton').disabled = false;
+
             // Add NCO as the first check-in
             const ncoCheckin = {
                 callsign: nco,
                 name: '',
-                comments: 'Net Control Operator',
-                time: startTime.toLocaleTimeString()
+                comments: 'Net Control Operator'
             };
             checkins.push(ncoCheckin);
             renderTable();
@@ -133,10 +152,62 @@
             endTime = new Date();
             clearInterval(timerInterval);
             timerInterval = null;
-            frozenCheckinsCount = checkins.length;
             document.getElementById('netStatus').innerText = `Net started at ${startTime.toLocaleString()} by ${nco}. Ended at ${endTime.toLocaleString()}.`;
             document.getElementById('stopButton').disabled = true;
+
+            document.getElementById('endTimeInput').value = formatLocalDateTime(endTime);
+            document.getElementById('endTimeInput').disabled = false;
+            document.getElementById('updateEndButton').disabled = false;
+
             updateOperatorTime(); // Final update
+        }
+
+        function updateStartTime() {
+            const input = document.getElementById('startTimeInput').value;
+            if (!input) {
+                alert('Please enter a start time.');
+                return;
+            }
+            const newTime = new Date(input);
+            if (isNaN(newTime.getTime())) {
+                alert('Invalid date format.');
+                return;
+            }
+            if (endTime && newTime > endTime) {
+                alert('Start time cannot be after end time.');
+                return;
+            }
+            startTime = newTime;
+            updateStatus();
+            updateTotals();
+        }
+
+        function updateEndTime() {
+            const input = document.getElementById('endTimeInput').value;
+            if (!input) {
+                alert('Please enter an end time.');
+                return;
+            }
+            const newTime = new Date(input);
+            if (isNaN(newTime.getTime())) {
+                alert('Invalid date format.');
+                return;
+            }
+            if (newTime < startTime) {
+                alert('End time cannot be before start time.');
+                return;
+            }
+            endTime = newTime;
+            updateStatus();
+            updateTotals();
+        }
+
+        function updateStatus() {
+            let status = `Net started at ${startTime.toLocaleString()} by ${nco}.`;
+            if (endTime) {
+                status += ` Ended at ${endTime.toLocaleString()}.`;
+            }
+            document.getElementById('netStatus').innerText = status;
         }
 
         function isDuplicateCallsign(callsign, excludeIndex = -1) {
@@ -162,21 +233,13 @@
                 return;
             }
 
-            const now = new Date();
             const checkin = {
                 callsign,
                 name,
-                comments,
-                time: now.toLocaleTimeString()
+                comments
             };
 
             if (editingIndex !== -1) {
-                if (endTime) {
-                    alert('Net has ended. Cannot update check-ins.');
-                    return;
-                }
-                // Update existing, but keep original time
-                checkin.time = checkins[editingIndex].time;
                 checkins[editingIndex] = checkin;
                 editingIndex = -1;
                 document.getElementById('addButton').innerText = 'Add Check-in';
@@ -194,10 +257,6 @@
         }
 
         function editCheckIn(index) {
-            if (endTime) {
-                alert('Net has ended. Cannot edit check-ins.');
-                return;
-            }
             const checkin = checkins[index];
             document.getElementById('callsign').value = checkin.callsign;
             document.getElementById('name').value = checkin.name;
@@ -208,10 +267,6 @@
         }
 
         function deleteCheckIn(index) {
-            if (endTime) {
-                alert('Net has ended. Cannot delete check-ins.');
-                return;
-            }
             if (confirm('Are you sure you want to delete this check-in?')) {
                 checkins.splice(index, 1);
                 renderTable();
@@ -228,7 +283,6 @@
                     <td>${checkin.callsign}</td>
                     <td>${checkin.name}</td>
                     <td>${checkin.comments}</td>
-                    <td>${checkin.time}</td>
                     <td>
                         <button onclick="editCheckIn(${index})">Edit</button>
                         <button onclick="deleteCheckIn(${index})">Delete</button>
@@ -253,12 +307,10 @@
             if (!startTime) return;
             const referenceTime = endTime || new Date();
             const diffSeconds = Math.floor((referenceTime - startTime) / 1000);
-            const effectiveCount = endTime ? frozenCheckinsCount : checkins.length;
-            const totalSeconds = effectiveCount * diffSeconds;
+            const totalSeconds = checkins.length * diffSeconds;
             const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
             const mins = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
-            const secs = (totalSeconds % 60).toString().padStart(2, '0');
-            document.getElementById('operatorTime').innerText = `${hours}:${mins}:${secs}`;
+            document.getElementById('operatorTime').innerText = `${hours}:${mins}`;
 
             const netMinutes = Math.floor(diffSeconds / 60);
             document.getElementById('netDuration').innerText = netMinutes;
@@ -269,7 +321,6 @@
                 nco,
                 startTime: startTime ? startTime.toISOString() : null,
                 endTime: endTime ? endTime.toISOString() : null,
-                frozenCheckinsCount,
                 checkins
             };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -297,14 +348,16 @@
                     nco = data.nco || '';
                     startTime = data.startTime ? new Date(data.startTime) : null;
                     endTime = data.endTime ? new Date(data.endTime) : null;
-                    frozenCheckinsCount = data.frozenCheckinsCount || 0;
                     checkins = data.checkins || [];
                     
-                    // For backward compatibility if location exists
+                    // For backward compatibility if location or time exists
                     checkins = checkins.map(checkin => {
                         if (checkin.location) {
                             checkin.comments = (checkin.location + ' ' + (checkin.comments || '')).trim();
                             delete checkin.location;
+                        }
+                        if (checkin.time) {
+                            delete checkin.time;
                         }
                         return checkin;
                     });
@@ -312,9 +365,15 @@
                     document.getElementById('nco').value = nco;
                     if (startTime) {
                         document.getElementById('stopButton').disabled = !!endTime;
+                        document.getElementById('startTimeInput').value = formatLocalDateTime(startTime);
+                        document.getElementById('startTimeInput').disabled = false;
+                        document.getElementById('updateStartButton').disabled = false;
                         let status = `Net started at ${startTime.toLocaleString()} by ${nco}.`;
                         if (endTime) {
                             status += ` Ended at ${endTime.toLocaleString()}.`;
+                            document.getElementById('endTimeInput').value = formatLocalDateTime(endTime);
+                            document.getElementById('endTimeInput').disabled = false;
+                            document.getElementById('updateEndButton').disabled = false;
                         }
                         document.getElementById('netStatus').innerText = status;
                         if (!endTime) {
