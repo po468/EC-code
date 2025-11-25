@@ -11,6 +11,7 @@
             font-family: Arial, sans-serif;
             display: flex;
             flex-direction: column;
+            font-size: 14px;
         }
         #header {
             flex-shrink: 0;
@@ -22,30 +23,142 @@
         #content {
             flex-grow: 1;
             overflow-y: auto;
-            padding: 10px;
+            padding: 8px;
         }
-        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        button { margin-top: 5px; margin-right: 10px; }
-        #comments { width: 100%; }
-        #callsign { text-transform: uppercase; }
-        h1 { margin: 0 0 5px 0; }
-        h2 { margin: 5px 0; }
-        label { display: block; margin-bottom: 2px; }
-        input { margin-bottom: 5px; }
-        section { margin-bottom: 5px; }
-        .inline-label { display: inline; margin-left: 10px; margin-right: 5px; }
-        #startButton { background-color: green; color: white; }
-        #stopButton { background-color: red; color: white; }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 15px;
+            max-width: 100%;
+            overflow-x: auto;
+            display: block;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: left;
+            font-size: 12px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        button {
+            margin: 3px 5px 0 0;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+        #comments {
+            flex-grow: 1;
+            min-width: 100px;
+        }
+        #callsign, #name {
+            width: 80px;
+            max-width: 80px;
+        }
+        #callsign {
+            text-transform: uppercase;
+        }
+        h1 {
+            margin: 0 0 5px 0;
+            font-size: 18px;
+        }
+        h2 {
+            margin: 5px 0;
+            font-size: 16px;
+        }
+        label {
+            display: block;
+            margin-bottom: 2px;
+            font-size: 12px;
+        }
+        input {
+            margin-bottom: 3px;
+            padding: 4px;
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+        section {
+            margin-bottom: 5px;
+        }
+        .inline-label {
+            display: inline;
+            margin-left: 8px;
+            margin-right: 4px;
+            font-size: 12px;
+        }
+        #startButton {
+            background-color: green;
+            color: white;
+        }
+        #stopButton {
+            background-color: red;
+            color: white;
+        }
+        #addCheckin {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: center;
+            gap: 5px;
+        }
+        #addCheckin label {
+            display: none; /* Hide labels to save space, rely on placeholders */
+        }
+        #addCheckin input {
+            margin: 0;
+        }
+        #addCheckin button {
+            flex-shrink: 0;
+        }
+
+        @media screen and (max-width: 600px) {
+            html, body {
+                font-size: 12px;
+            }
+            #header, #content {
+                padding: 4px;
+            }
+            h1 {
+                font-size: 16px;
+            }
+            h2 {
+                font-size: 14px;
+            }
+            th, td {
+                padding: 4px;
+                font-size: 10px;
+            }
+            button {
+                padding: 4px 8px;
+                font-size: 10px;
+            }
+            input {
+                padding: 3px;
+                font-size: 10px;
+            }
+            #callsign, #name {
+                width: 60px;
+                max-width: 60px;
+            }
+            #comments {
+                min-width: 80px;
+            }
+            .inline-label {
+                font-size: 10px;
+                margin-left: 5px;
+                margin-right: 3px;
+            }
+        }
+
         @media print {
-            #netSetup, #addCheckin, #dataManagement, th:last-child, td:last-child { display: none; }
+            #netSetup, #addCheckin, #dataManagement, th:last-child, td:last-child {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
     <div id="header">
-        <h1>Ham Radio Net Control Operations - Version 6</h1>
+        <h1>Ham Radio Net Control Operations - Version 7</h1>
 
         <section id="netSetup">
             <label for="nco">Net Control Operator:</label>
@@ -63,12 +176,9 @@
 
         <section id="addCheckin">
             <h2>Add/Check-in</h2>
-            <label for="callsign">Callsign:</label>
-            <input type="text" id="callsign" placeholder="e.g., W1AW">
-            <label for="name">Name:</label>
-            <input type="text" id="name" placeholder="e.g., John Doe">
-            <label for="comments">Location/Comments:</label>
-            <input type="text" id="comments" placeholder="e.g., Grid Square FN31, Strong signal" maxlength="250">
+            <input type="text" id="callsign" placeholder="Callsign" maxlength="10">
+            <input type="text" id="name" placeholder="Name" maxlength="10">
+            <input type="text" id="comments" placeholder="Location/Comments" maxlength="250">
             <button id="addButton" onclick="addOrUpdateCheckIn()">Add Check-in</button>
         </section>
     </div>
@@ -124,7 +234,7 @@
                 alert('Please enter the Net Control Operator callsign.');
                 return;
             }
-            document.getElementById('nco').value = nco; // Uppercase NCO
+            document.getElementById('nco').value = nco;
             startTime = new Date();
             document.getElementById('netStatus').innerText = `Net started at ${startTime.toLocaleString()} by ${nco}.`;
             document.getElementById('stopButton').disabled = false;
@@ -133,7 +243,6 @@
             document.getElementById('startTimeInput').disabled = false;
             document.getElementById('updateStartButton').disabled = false;
 
-            // Add NCO as the first check-in
             const ncoCheckin = {
                 callsign: nco,
                 name: '',
@@ -159,7 +268,7 @@
             document.getElementById('endTimeInput').disabled = false;
             document.getElementById('updateEndButton').disabled = false;
 
-            updateOperatorTime(); // Final update
+            updateOperatorTime();
         }
 
         function updateStartTime() {
@@ -244,14 +353,12 @@
                 editingIndex = -1;
                 document.getElementById('addButton').innerText = 'Add Check-in';
             } else {
-                // Allow adding even after end (late check-in)
                 checkins.push(checkin);
             }
 
             renderTable();
             updateTotals();
 
-            // Clear input fields and focus on callsign
             clearInputs();
             document.getElementById('callsign').focus();
         }
@@ -263,7 +370,7 @@
             document.getElementById('comments').value = checkin.comments;
             document.getElementById('addButton').innerText = 'Update Check-in';
             editingIndex = index;
-            document.getElementById('callsign').focus(); // Focus on callsign when editing
+            document.getElementById('callsign').focus();
         }
 
         function deleteCheckIn(index) {
@@ -350,7 +457,6 @@
                     endTime = data.endTime ? new Date(data.endTime) : null;
                     checkins = data.checkins || [];
                     
-                    // For backward compatibility if location or time exists
                     checkins = checkins.map(checkin => {
                         if (checkin.location) {
                             checkin.comments = (checkin.location + ' ' + (checkin.comments || '')).trim();
