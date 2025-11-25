@@ -1,508 +1,308 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ham Radio Net Control Operations</title>
-    <style>
-        html, body {
-            height: 100%;
-            margin: 0;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            font-size: 14px;
-        }
-        #header {
-            flex-shrink: 0;
-            background: white;
-            z-index: 1;
-            padding: 5px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        #content {
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 8px;
-        }
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-bottom: 15px;
-            max-width: 100%;
-            overflow-x: auto;
-            display: block;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 6px;
-            text-align: left;
-            font-size: 12px;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        button {
-            margin: 3px 5px 0 0;
-            padding: 5px 10px;
-            font-size: 12px;
-        }
-        #comments {
-            flex-grow: 1;
-            min-width: 100px;
-        }
-        #callsign, #name {
-            width: 80px;
-            max-width: 80px;
-        }
-        #callsign {
-            text-transform: uppercase;
-        }
-        h1 {
-            margin: 0 0 5px 0;
-            font-size: 18px;
-        }
-        h2 {
-            margin: 5px 0;
-            font-size: 16px;
-        }
-        label {
-            display: block;
-            margin-bottom: 2px;
-            font-size: 12px;
-        }
-        input {
-            margin-bottom: 3px;
-            padding: 4px;
-            font-size: 12px;
-            box-sizing: border-box;
-        }
-        section {
-            margin-bottom: 5px;
-        }
-        .inline-label {
-            display: inline;
-            margin-left: 8px;
-            margin-right: 4px;
-            font-size: 12px;
-        }
-        #startButton {
-            background-color: green;
-            color: white;
-        }
-        #stopButton {
-            background-color: red;
-            color: white;
-        }
-        #addCheckin {
-            display: flex;
-            flex-wrap: nowrap;
-            align-items: center;
-            gap: 5px;
-        }
-        #addCheckin label {
-            display: none; /* Hide labels to save space, rely on placeholders */
-        }
-        #addCheckin input {
-            margin: 0;
-        }
-        #addCheckin button {
-            flex-shrink: 0;
-        }
-
-        @media screen and (max-width: 600px) {
-            html, body {
-                font-size: 12px;
-            }
-            #header, #content {
-                padding: 4px;
-            }
-            h1 {
-                font-size: 16px;
-            }
-            h2 {
-                font-size: 14px;
-            }
-            th, td {
-                padding: 4px;
-                font-size: 10px;
-            }
-            button {
-                padding: 4px 8px;
-                font-size: 10px;
-            }
-            input {
-                padding: 3px;
-                font-size: 10px;
-            }
-            #callsign, #name {
-                width: 60px;
-                max-width: 60px;
-            }
-            #comments {
-                min-width: 80px;
-            }
-            .inline-label {
-                font-size: 10px;
-                margin-left: 5px;
-                margin-right: 3px;
-            }
-        }
-
-        @media print {
-            #netSetup, #addCheckin, #dataManagement, th:last-child, td:last-child {
-                display: none;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<title>Ham Radio Net Control Logger - v8.3 (Persistent Roster)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    html,body{height:100%;margin:0;font-family:Arial,sans-serif;display:flex;flex-direction:column;font-size:14px;background:#f4f4f4;}
+    #header{background:white;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);z-index:10;}
+    #main{display:flex;flex:1;overflow:hidden;}
+    #leftPanel{flex:1;overflow-y:auto;padding:10px;background:#fff;}
+    #rightPanel{width:180px;background:#fff;border-left:1px solid #ddd;overflow-y:auto;padding:10px;font-size:13px;}
+    table{border-collapse:collapse;width:100%;margin:15px 0;}
+    th,td{border:1px solid #ddd;padding:6px;text-align:left;font-size:12px;}
+    th{background:#f2f2f2;}
+    button{margin:2px 4px;padding:5px 9px;font-size:12px;cursor:pointer;}
+    input{padding:5px;font-size:12px;margin:2px 0;box-sizing:border-box;}
+    h1{margin:0;font-size:19px;}
+    h2{margin:10px 0 6px;font-size:15px;}
+    #addCheckin{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0;}
+    #startButton{background:green;color:white;font-weight:bold;}
+    #stopButton{background:red;color:white;font-weight:bold;}
+    #rosterList{user-select:none;}
+    .roster-call{display:block;padding:4px 6px;margin:1px 0;border-radius:4px;cursor:pointer;background:#eee;text-transform:uppercase;font-weight:bold;}
+    .roster-call:hover{background:#bbdefb;}
+    #netStatus{margin-top:8px;font-weight:bold;color:#006400;}
+    .uppercase-input {text-transform:uppercase;}
+    @media (max-width:800px){
+        #main{flex-direction:column;}
+        #rightPanel{width:100%;max-height:200px;border-left:none;border-top:1px solid #ddd;}
+    }
+    @media print{#rightPanel,#netSetup,#addCheckin,#dataManagement{display:none;}}
+</style>
 </head>
 <body>
-    <div id="header">
-        <h1>Ham Radio Net Control Operations - Version 7</h1>
 
-        <section id="netSetup">
-            <label for="nco">Net Control Operator:</label>
-            <input type="text" id="nco" placeholder="Enter your callsign">
-            <button id="startButton" onclick="startNet()">Start Net</button>
-            <label class="inline-label" for="startTimeInput">Edit Start Time:</label>
-            <input type="datetime-local" id="startTimeInput" disabled>
-            <button onclick="updateStartTime()" disabled id="updateStartButton">Update Start</button>
-            <button onclick="stopNet()" disabled id="stopButton">Stop Net</button>
-            <label class="inline-label" for="endTimeInput">Edit End Time:</label>
-            <input type="datetime-local" id="endTimeInput" disabled>
-            <button onclick="updateEndTime()" disabled id="updateEndButton">Update End</button>
-            <p id="netStatus">Net not started yet.</p>
-        </section>
-
-        <section id="addCheckin">
-            <h2>Add/Check-in</h2>
-            <input type="text" id="callsign" placeholder="Callsign" maxlength="10">
-            <input type="text" id="name" placeholder="Name" maxlength="10">
-            <input type="text" id="comments" placeholder="Location/Comments" maxlength="250">
-            <button id="addButton" onclick="addOrUpdateCheckIn()">Add Check-in</button>
-        </section>
+<div id="header">
+    <h1>Ham Radio Net Control Logger - v8.3</h1>
+    <div id="netSetup">
+        NCO: <input type="text" id="nco" class="uppercase-input" placeholder="Your callsign" style="width:100px;">
+        <button id="startButton" onclick="startNet()">Start Net</button>
+        <button id="stopButton" onclick="stopNet()" disabled>Stop Net</button>
+        <span id="netStatus">Net not started yet.</span>
     </div>
+</div>
 
-    <div id="content">
-        <section>
-            <h2>Check-ins</h2>
-            <table id="checkinsTable">
-                <thead>
-                    <tr>
-                        <th>Callsign</th>
-                        <th>Name</th>
-                        <th>Location/Comments</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
-            <p>Total Check-ins: <span id="totalCheckins">0</span></p>
-            <p>Total Operator Time (hours:minutes): <span id="operatorTime">00:00:00</span></p>
-            <p>Net Duration: <span id="netDuration">0</span> minutes</p>
+<div id="main">
+    <div id="leftPanel">
+        <section id="addCheckin">
+            <h2>Add / Check-in</h2>
+            <input type="text" id="callsign" class="uppercase-input" placeholder="Callsign" style="width:100px;font-weight:bold;">
+            <input type="text" id="name" placeholder="Name" style="width:110px;">
+            <input type="text" id="comments" placeholder="Location / Comments" style="flex:1;">
+            <button onclick="addOrUpdateCheckIn()">Add / Update</button>
+            <button onclick="clearInputs()">Clear</button>
         </section>
+
+        <h2>Current Check-ins (<span id="totalCheckins">0</span>)</h2>
+        <table id="checkinsTable">
+            <thead><tr><th>Callsign</th><th>Name</th><th>Location/Comments</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+        </table>
+
+        <p>Net Duration: <strong id="netDuration">0</strong> min | 
+           Total Operator Time: <strong id="operatorTime">00:00</strong></p>
 
         <section id="dataManagement">
             <h2>Data Management</h2>
-            <button onclick="exportData()">Export Data (JSON)</button>
+            <button onclick="exportData()">Export Net (JSON)</button>
             <input type="file" id="importFile" accept=".json">
-            <button onclick="importData()">Import Data (JSON)</button>
+            <button onclick="importData()">Import Net</button><br><br>
+            <input type="file" id="rosterFile" accept=".json">
+            <label><input type="checkbox" id="rosterOnlyImport" checked> Roster only</label>
+            <button onclick="importRoster()">Load Roster</button>
             <button onclick="printLog()">Print Log</button>
         </section>
     </div>
 
-    <script>
-        let startTime = null;
-        let endTime = null;
-        let checkins = [];
-        let timerInterval = null;
-        let nco = '';
-        let editingIndex = -1;
+    <div id="rightPanel">
+        <h2>Roster</h2>
+        <div id="rosterList">No roster loaded</div>
+    </div>
+</div>
 
-        function formatLocalDateTime(date) {
-            const year = date.getFullYear();
-            const month = (date.getMonth() + 1).toString().padStart(2, '0');
-            const day = date.getDate().toString().padStart(2, '0');
-            const hours = date.getHours().toString().padStart(2, '0');
-            const minutes = date.getMinutes().toString().padStart(2, '0');
-            return `${year}-${month}-${day}T${hours}:${minutes}`;
-        }
+<script>
+// Force uppercase on input
+document.querySelectorAll('.uppercase-input').forEach(input => {
+    input.addEventListener('input', function(e) {
+        const start = this.selectionStart;
+        const end = this.selectionEnd;
+        this.value = this.value.toUpperCase();
+        this.setSelectionRange(start, end);
+    });
+});
 
-        function startNet() {
-            nco = document.getElementById('nco').value.trim().toUpperCase();
-            if (!nco) {
-                alert('Please enter the Net Control Operator callsign.');
-                return;
-            }
-            document.getElementById('nco').value = nco;
-            startTime = new Date();
-            document.getElementById('netStatus').innerText = `Net started at ${startTime.toLocaleString()} by ${nco}.`;
-            document.getElementById('stopButton').disabled = false;
+let startTime=null, endTime=null, timerInterval=null;
+let checkins=[], nco='', editingIndex=-1;
+let roster = new Map(); // callsign → {name, comments}
 
-            document.getElementById('startTimeInput').value = formatLocalDateTime(startTime);
-            document.getElementById('startTimeInput').disabled = false;
-            document.getElementById('updateStartButton').disabled = false;
+// ——————— Net Control ———————
+function startNet(){
+    nco = document.getElementById('nco').value.trim().toUpperCase();
+    if(!nco)return alert('Enter NCO callsign');
+    document.getElementById('nco').value = nco;
+    startTime=new Date();
+    document.getElementById('netStatus').textContent=`Net started ${startTime.toLocaleString()} by ${nco}`;
+    document.getElementById('stopButton').disabled=false;
+    if(!checkins.some(c=>c.callsign===nco)){
+        checkins.push({callsign:nco,name:'',comments:'Net Control'});
+        updateRosterFromCurrent();
+    }
+    timerInterval=setInterval(updateTotals,1000);
+    renderTable();
+}
+function stopNet(){
+    endTime=new Date(); clearInterval(timerInterval);
+    document.getElementById('netStatus').textContent+=` | Ended ${endTime.toLocaleString()}`;
+    document.getElementById('stopButton').disabled=true;
+    updateTotals();
+}
 
-            const ncoCheckin = {
-                callsign: nco,
-                name: '',
-                comments: 'Net Control Operator'
-            };
-            checkins.push(ncoCheckin);
-            renderTable();
-            updateTotals();
+// ——————— Check-ins ———————
+function addOrUpdateCheckIn(){
+    if(!startTime)return alert('Start net first');
+    let cs = document.getElementById('callsign').value.trim().toUpperCase();
+    let name = document.getElementById('name').value.trim();
+    let comments = document.getElementById('comments').value.trim();
+    if(!cs)return alert('Callsign required');
 
-            if (timerInterval) clearInterval(timerInterval);
-            timerInterval = setInterval(updateOperatorTime, 1000);
-        }
+    const dupIdx=checkins.findIndex((c,i)=>c.callsign===cs && i!==editingIndex);
+    if(dupIdx!==-1)return alert('Callsign already checked in');
 
-        function stopNet() {
-            if (!startTime) return;
-            endTime = new Date();
-            clearInterval(timerInterval);
-            timerInterval = null;
-            document.getElementById('netStatus').innerText = `Net started at ${startTime.toLocaleString()} by ${nco}. Ended at ${endTime.toLocaleString()}.`;
-            document.getElementById('stopButton').disabled = true;
+    const entry={callsign:cs, name, comments};
+    if(editingIndex!==-1){ checkins[editingIndex]=entry; editingIndex=-1; }
+    else{ checkins.push(entry); }
 
-            document.getElementById('endTimeInput').value = formatLocalDateTime(endTime);
-            document.getElementById('endTimeInput').disabled = false;
-            document.getElementById('updateEndButton').disabled = false;
+    roster.set(cs,{name,comments});
+    renderTable(); updateTotals(); renderRoster(); clearInputs();
+}
+function editCheckIn(i){
+    const c=checkins[i];
+    document.getElementById('callsign').value=c.callsign;
+    document.getElementById('name').value=c.name;
+    document.getElementById('comments').value=c.comments;
+    editingIndex=i;
+}
+function deleteCheckIn(i){
+    if(confirm('Delete this check-in?')){ checkins.splice(i,1); renderTable(); updateTotals(); }
+}
+function clearInputs(){
+    document.getElementById('callsign').value=
+    document.getElementById('name').value=
+    document.getElementById('comments').value='';
+    editingIndex=-1;
+}
 
-            updateOperatorTime();
-        }
-
-        function updateStartTime() {
-            const input = document.getElementById('startTimeInput').value;
-            if (!input) {
-                alert('Please enter a start time.');
-                return;
-            }
-            const newTime = new Date(input);
-            if (isNaN(newTime.getTime())) {
-                alert('Invalid date format.');
-                return;
-            }
-            if (endTime && newTime > endTime) {
-                alert('Start time cannot be after end time.');
-                return;
-            }
-            startTime = newTime;
-            updateStatus();
-            updateTotals();
-        }
-
-        function updateEndTime() {
-            const input = document.getElementById('endTimeInput').value;
-            if (!input) {
-                alert('Please enter an end time.');
-                return;
-            }
-            const newTime = new Date(input);
-            if (isNaN(newTime.getTime())) {
-                alert('Invalid date format.');
-                return;
-            }
-            if (newTime < startTime) {
-                alert('End time cannot be before start time.');
-                return;
-            }
-            endTime = newTime;
-            updateStatus();
-            updateTotals();
-        }
-
-        function updateStatus() {
-            let status = `Net started at ${startTime.toLocaleString()} by ${nco}.`;
-            if (endTime) {
-                status += ` Ended at ${endTime.toLocaleString()}.`;
-            }
-            document.getElementById('netStatus').innerText = status;
-        }
-
-        function isDuplicateCallsign(callsign, excludeIndex = -1) {
-            return checkins.some((checkin, index) => index !== excludeIndex && checkin.callsign.toLowerCase() === callsign.toLowerCase());
-        }
-
-        function addOrUpdateCheckIn() {
-            if (!startTime) {
-                alert('Please start the net first.');
-                return;
-            }
-            let callsign = document.getElementById('callsign').value.trim().toUpperCase();
-            const name = document.getElementById('name').value.trim();
-            const comments = document.getElementById('comments').value.trim();
-
-            if (!callsign) {
-                alert('Callsign is required.');
-                return;
-            }
-
-            if (isDuplicateCallsign(callsign, editingIndex)) {
-                alert('Duplicate callsign detected. Please use a unique callsign.');
-                return;
-            }
-
-            const checkin = {
-                callsign,
-                name,
-                comments
-            };
-
-            if (editingIndex !== -1) {
-                checkins[editingIndex] = checkin;
-                editingIndex = -1;
-                document.getElementById('addButton').innerText = 'Add Check-in';
-            } else {
-                checkins.push(checkin);
-            }
-
-            renderTable();
-            updateTotals();
-
-            clearInputs();
+// ——————— Rendering ———————
+function renderTable(){
+    const tbody=document.querySelector('#checkinsTable tbody');
+    tbody.innerHTML='';
+    checkins.forEach((c,i)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td><strong>${c.callsign}</strong></td><td>${c.name}</td><td>${c.comments}</td>
+            <td><button onclick="editCheckIn(${i})">Edit</button>
+                <button onclick="deleteCheckIn(${i})">Del</button></td>`;
+        tbody.appendChild(tr);
+    });
+}
+function renderRoster(){
+    const list=document.getElementById('rosterList');
+    if(roster.size===0){
+        list.innerHTML='<em style="color:#888;">No roster loaded</em>';
+        return;
+    }
+    const sorted=[...roster.keys()].sort((a,b)=>a.localeCompare(b));
+    list.innerHTML='';
+    sorted.forEach(call=>{
+        const div=document.createElement('div');
+        div.className='roster-call';
+        div.textContent=call;
+        const info = roster.get(call);
+        div.title=`${info.name||'(no name)'} — ${info.comments||'(no comment)'}`;
+        div.onclick=()=>{
+            document.getElementById('callsign').value=call;
+            document.getElementById('name').value=info.name||'';
+            document.getElementById('comments').value=info.comments||'';
             document.getElementById('callsign').focus();
+        };
+        list.appendChild(div);
+    });
+}
+function updateRosterFromCurrent(){
+    checkins.forEach(c=>roster.set(c.callsign,{name:c.name||'',comments:c.comments||''}));
+    renderRoster();
+}
+function updateTotals(){
+    document.getElementById('totalCheckins').textContent=checkins.length;
+    if(!startTime)return;
+    const now=endTime||new Date();
+    const minutes=Math.floor((now-startTime)/60000);
+    document.getElementById('netDuration').textContent=minutes;
+    const totalSec=checkins.length*(now-startTime)/1000;
+    const h=Math.floor(totalSec/3600).toString().padStart(2,'0');
+    const m=Math.floor((totalSec%3600)/60).toString().padStart(2,'0');
+    document.getElementById('operatorTime').textContent=`${h}:${m}`;
+}
+
+// ——————— Import / Export ———————
+function exportData(){
+    // Build full roster array from Map
+    const fullRoster = Array.from(roster.entries()).map(([callsign, info]) => ({
+        callsign,
+        name: info.name || '',
+        comments: info.comments || ''
+    }));
+
+    const data={
+        nco,
+        startTime:startTime?.toISOString(),
+        endTime:endTime?.toISOString(),
+        checkins,
+        roster: fullRoster  // <-- NEW: include everyone
+    };
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`net_${nco}_${new Date().toISOString().slice(0,10)}.json`;
+    a.click(); URL.revokeObjectURL(a.href);
+}
+function importData(){
+    const f=document.getElementById('importFile').files[0];
+    if(!f)return alert('Select file');
+    const r=new FileReader();
+    r.onload=e=>{try{
+        const d=JSON.parse(e.target.result);
+        if(!confirm('Replace current net?'))return;
+        nco=(d.nco||'').toUpperCase();
+        startTime=d.startTime?new Date(d.startTime):null;
+        endTime=d.endTime?new Date(d.endTime):null;
+        checkins=(d.checkins||[]).map(c=>({...c, callsign: c.callsign.toUpperCase()}));
+        document.getElementById('nco').value=nco;
+        document.getElementById('netStatus').textContent=startTime?`Loaded – ${new Date(startTime).toLocaleString()} by ${nco}`:'Net not started';
+        document.getElementById('stopButton').disabled=!startTime||!!endTime;
+
+        // Restore full roster if present
+        if (d.roster && Array.isArray(d.roster)) {
+            roster.clear();
+            d.roster.forEach(entry => {
+                roster.set(entry.callsign.toUpperCase(), {
+                    name: entry.name || '',
+                    comments: entry.comments || ''
+                });
+            });
+        } else {
+            updateRosterFromCurrent(); // fallback
         }
 
-        function editCheckIn(index) {
-            const checkin = checkins[index];
-            document.getElementById('callsign').value = checkin.callsign;
-            document.getElementById('name').value = checkin.name;
-            document.getElementById('comments').value = checkin.comments;
-            document.getElementById('addButton').innerText = 'Update Check-in';
-            editingIndex = index;
-            document.getElementById('callsign').focus();
-        }
+        renderTable(); updateTotals(); renderRoster();
+    }catch(err){alert('Invalid file')}};
+    r.readAsText(f);
+}
+function importRoster(){
+    const f=document.getElementById('rosterFile').files[0];
+    if(!f)return alert('Select roster file');
+    const r=new FileReader();
+    r.onload=e=>{try{
+        const d=JSON.parse(e.target.result);
 
-        function deleteCheckIn(index) {
-            if (confirm('Are you sure you want to delete this check-in?')) {
-                checkins.splice(index, 1);
-                renderTable();
-                updateTotals();
-            }
-        }
-
-        function renderTable() {
-            const tbody = document.getElementById('checkinsTable').querySelector('tbody');
-            tbody.innerHTML = '';
-            checkins.forEach((checkin, index) => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${checkin.callsign}</td>
-                    <td>${checkin.name}</td>
-                    <td>${checkin.comments}</td>
-                    <td>
-                        <button onclick="editCheckIn(${index})">Edit</button>
-                        <button onclick="deleteCheckIn(${index})">Delete</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
+        // Always merge roster
+        let added = 0;
+        if (d.roster && Array.isArray(d.roster)) {
+            d.roster.forEach(entry => {
+                const cs = entry.callsign.toUpperCase();
+                if (!roster.has(cs)) added++;
+                roster.set(cs, {name: entry.name||'', comments: entry.comments||''});
+            });
+        } else if (d.checkins && Array.isArray(d.checkins)) {
+            // Legacy support
+            d.checkins.forEach(c=>{
+                const cs = c.callsign.toUpperCase();
+                if (!roster.has(cs)) added++;
+                roster.set(cs,{name:c.name||'',comments:c.comments||''});
             });
         }
+        renderRoster();
 
-        function clearInputs() {
-            document.getElementById('callsign').value = '';
-            document.getElementById('name').value = '';
-            document.getElementById('comments').value = '';
-        }
-
-        function updateTotals() {
-            document.getElementById('totalCheckins').innerText = checkins.length;
-            updateOperatorTime();
-        }
-
-        function updateOperatorTime() {
-            if (!startTime) return;
-            const referenceTime = endTime || new Date();
-            const diffSeconds = Math.floor((referenceTime - startTime) / 1000);
-            const totalSeconds = checkins.length * diffSeconds;
-            const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
-            const mins = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
-            document.getElementById('operatorTime').innerText = `${hours}:${mins}`;
-
-            const netMinutes = Math.floor(diffSeconds / 60);
-            document.getElementById('netDuration').innerText = netMinutes;
-        }
-
-        function exportData() {
-            const data = {
-                nco,
-                startTime: startTime ? startTime.toISOString() : null,
-                endTime: endTime ? endTime.toISOString() : null,
-                checkins
-            };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'net_data.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-        function importData() {
-            const fileInput = document.getElementById('importFile');
-            if (!fileInput.files.length) {
-                alert('Please select a JSON file to import.');
-                return;
+        if(!document.getElementById('rosterOnlyImport').checked){
+            if(confirm('Also load as current net?')){
+                nco=(d.nco||'').toUpperCase();
+                startTime=d.startTime?new Date(d.startTime):null;
+                endTime=d.endTime?new Date(d.endTime):null;
+                checkins=(d.checkins||[]).map(c=>({...c, callsign: c.callsign.toUpperCase()}));
+                document.getElementById('nco').value=nco;
+                document.getElementById('netStatus').textContent=startTime?`Loaded – ${new Date(startTime).toLocaleString()} by ${nco}`:'Net not started';
+                renderTable(); updateTotals();
             }
-            const file = fileInput.files[0];
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    nco = data.nco || '';
-                    startTime = data.startTime ? new Date(data.startTime) : null;
-                    endTime = data.endTime ? new Date(data.endTime) : null;
-                    checkins = data.checkins || [];
-                    
-                    checkins = checkins.map(checkin => {
-                        if (checkin.location) {
-                            checkin.comments = (checkin.location + ' ' + (checkin.comments || '')).trim();
-                            delete checkin.location;
-                        }
-                        if (checkin.time) {
-                            delete checkin.time;
-                        }
-                        return checkin;
-                    });
-
-                    document.getElementById('nco').value = nco;
-                    if (startTime) {
-                        document.getElementById('stopButton').disabled = !!endTime;
-                        document.getElementById('startTimeInput').value = formatLocalDateTime(startTime);
-                        document.getElementById('startTimeInput').disabled = false;
-                        document.getElementById('updateStartButton').disabled = false;
-                        let status = `Net started at ${startTime.toLocaleString()} by ${nco}.`;
-                        if (endTime) {
-                            status += ` Ended at ${endTime.toLocaleString()}.`;
-                            document.getElementById('endTimeInput').value = formatLocalDateTime(endTime);
-                            document.getElementById('endTimeInput').disabled = false;
-                            document.getElementById('updateEndButton').disabled = false;
-                        }
-                        document.getElementById('netStatus').innerText = status;
-                        if (!endTime) {
-                            timerInterval = setInterval(updateOperatorTime, 1000);
-                        }
-                    } else {
-                        document.getElementById('netStatus').innerText = 'Net not started yet.';
-                        document.getElementById('stopButton').disabled = true;
-                    }
-                    
-                    renderTable();
-                    updateTotals();
-                    alert('Data imported successfully.');
-                } catch (err) {
-                    alert('Error importing data: ' + err.message);
-                }
-            };
-            reader.readAsText(file);
         }
+        alert(`Roster merged – ${roster.size} total (${added} new)`);
+    }catch(err){alert('Error: '+err)}};
+    r.readAsText(f);
+}
+function printLog(){window.print();}
 
-        function printLog() {
-            window.print();
-        }
-    </script>
+// Init
+renderTable(); renderRoster();
+</script>
 </body>
 </html>
