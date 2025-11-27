@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ham Radio Net Control Logger - v8.3 (Persistent Roster)</title>
+<title>Ham Radio Net Control Logger - v8.5</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
     html,body{height:100%;margin:0;font-family:Arial,sans-serif;display:flex;flex-direction:column;font-size:14px;background:#f4f4f4;}
     #header{background:white;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);z-index:10;}
     #main{display:flex;flex:1;overflow:hidden;}
     #leftPanel{flex:1;overflow-y:auto;padding:10px;background:#fff;}
-    #rightPanel{width:180px;background:#fff;border-left:1px solid #ddd;overflow-y:auto;padding:10px;font-size:13px;}
+    #rightPanel{width:190px;background:#fff;border-left:1px solid #ddd;overflow-y:auto;padding:10px;font-size:13px;}
     table{border-collapse:collapse;width:100%;margin:15px 0;}
     th,td{border:1px solid #ddd;padding:6px;text-align:left;font-size:12px;}
     th{background:#f2f2f2;}
@@ -20,14 +20,17 @@
     #addCheckin{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0;}
     #startButton{background:green;color:white;font-weight:bold;}
     #stopButton{background:red;color:white;font-weight:bold;}
-    #rosterList{user-select:none;}
-    .roster-call{display:block;padding:4px 6px;margin:1px 0;border-radius:4px;cursor:pointer;background:#eee;text-transform:uppercase;font-weight:bold;}
+    .roster-call{
+        display:block;padding:5px 7px;margin:2px 0;border-radius:4px;
+        cursor:pointer;background:#e8e8e8;text-transform:uppercase;font-weight:bold;
+        user-select:none;
+    }
     .roster-call:hover{background:#bbdefb;}
     #netStatus{margin-top:8px;font-weight:bold;color:#006400;}
     .uppercase-input {text-transform:uppercase;}
     @media (max-width:800px){
         #main{flex-direction:column;}
-        #rightPanel{width:100%;max-height:200px;border-left:none;border-top:1px solid #ddd;}
+        #rightPanel{width:100%;max-height:220px;border-left:none;border-top:1px solid #ddd;}
     }
     @media print{#rightPanel,#netSetup,#addCheckin,#dataManagement{display:none;}}
 </style>
@@ -35,9 +38,7 @@
 <body>
 
 <div id="header">
-    <h1>Ham Radio Net Control Logger - v8.3</h1>
-    	<h4> By N3WS and Grok </h4>
-
+    <h1>Ham Radio Net Control Logger - v8.5</h1>
     <div id="netSetup">
         NCO: <input type="text" id="nco" class="uppercase-input" placeholder="Your callsign" style="width:100px;">
         <button id="startButton" onclick="startNet()">Start Net</button>
@@ -50,14 +51,14 @@
     <div id="leftPanel">
         <section id="addCheckin">
             <h2>Add / Check-in</h2>
-            <input type="text" id="callsign" class="uppercase-input" placeholder="Callsign" style="width:100px;font-weight:bold;">
+            <input type="text" id="callsign" class="uppercase-input" placeholder="Callsign" style="width:110px;font-weight:bold;">
             <input type="text" id="name" placeholder="Name" style="width:110px;">
             <input type="text" id="comments" placeholder="Location / Comments" style="flex:1;">
             <button onclick="addOrUpdateCheckIn()">Add / Update</button>
             <button onclick="clearInputs()">Clear</button>
         </section>
 
-        <h2>Current Check-ins (<span id="totalCheckins">0</span>)</h2>
+        <h2>Current Check-ins (<span id="totalCheckins">0</span>)</h2>  <i>* Putting a "?" anywhere in the callsign, will not add it to the roster.</i>
         <table id="checkinsTable">
             <thead><tr><th>Callsign</th><th>Name</th><th>Location/Comments</th><th>Actions</th></tr></thead>
             <tbody></tbody>
@@ -70,7 +71,7 @@
             <h2>Data Management</h2>
             <button onclick="exportData()">Export Net (JSON)</button>
             <input type="file" id="importFile" accept=".json">
-            <button onclick="importData()">Import Net</button><br><br>
+            <button onclick="importData()">Import Net (replace)</button><br><br>
             <input type="file" id="rosterFile" accept=".json">
             <label><input type="checkbox" id="rosterOnlyImport" checked> Roster only</label>
             <button onclick="importRoster()">Load Roster</button>
@@ -79,15 +80,15 @@
     </div>
 
     <div id="rightPanel">
-        <h2>Roster</h2>
+        <h2>Roster <small>(right-click = remove)</small></h2>
         <div id="rosterList">No roster loaded</div>
     </div>
 </div>
 
 <script>
-// Force uppercase on input
+// Force uppercase while typing
 document.querySelectorAll('.uppercase-input').forEach(input => {
-    input.addEventListener('input', function(e) {
+    input.addEventListener('input', function() {
         const start = this.selectionStart;
         const end = this.selectionEnd;
         this.value = this.value.toUpperCase();
@@ -95,217 +96,271 @@ document.querySelectorAll('.uppercase-input').forEach(input => {
     });
 });
 
-let startTime=null, endTime=null, timerInterval=null;
-let checkins=[], nco='', editingIndex=-1;
-let roster = new Map(); // callsign → {name, comments}
+let startTime = null, endTime = null, timerInterval = null;
+let checkins = [], nco = '', editingIndex = -1;
+let roster = new Map(); // permanent roster: callsign → {name, comments}
 
 // ——————— Net Control ———————
 function startNet(){
     nco = document.getElementById('nco').value.trim().toUpperCase();
-    if(!nco)return alert('Enter NCO callsign');
+    if(!nco) return alert('Enter your callsign');
     document.getElementById('nco').value = nco;
-    startTime=new Date();
-    document.getElementById('netStatus').textContent=`Net started ${startTime.toLocaleString()} by ${nco}`;
-    document.getElementById('stopButton').disabled=false;
-    if(!checkins.some(c=>c.callsign===nco)){
-        checkins.push({callsign:nco,name:'',comments:'Net Control'});
-        updateRosterFromCurrent();
+    startTime = new Date();
+    document.getElementById('netStatus').textContent = `Net started ${startTime.toLocaleString()} by ${nco}`;
+    document.getElementById('stopButton').disabled = false;
+
+    if(!checkins.some(c => c.callsign === nco)){
+        checkins.push({callsign:nco, name:'', comments:'Net Control'});
+        roster.set(nco, {name:'', comments:'Net Control'});
     }
-    timerInterval=setInterval(updateTotals,1000);
+    timerInterval = setInterval(updateTotals, 1000);
     renderTable();
+    renderRoster();
 }
+
 function stopNet(){
-    endTime=new Date(); clearInterval(timerInterval);
-    document.getElementById('netStatus').textContent+=` | Ended ${endTime.toLocaleString()}`;
-    document.getElementById('stopButton').disabled=true;
+    endTime = new Date();
+    clearInterval(timerInterval);
+    document.getElementById('netStatus').textContent += ` | Ended ${endTime.toLocaleString()}`;
+    document.getElementById('stopButton').disabled = true;
     updateTotals();
 }
 
-// ——————— Check-ins ———————
+// ——————— Check-in Handling ———————
 function addOrUpdateCheckIn(){
-    if(!startTime)return alert('Start net first');
+    if(!startTime) return alert('Start the net first');
+
     let cs = document.getElementById('callsign').value.trim().toUpperCase();
     let name = document.getElementById('name').value.trim();
     let comments = document.getElementById('comments').value.trim();
-    if(!cs)return alert('Callsign required');
+    if(!cs) return alert('Callsign required');
 
-    const dupIdx=checkins.findIndex((c,i)=>c.callsign===cs && i!==editingIndex);
-    if(dupIdx!==-1)return alert('Callsign already checked in');
+    const dup = checkins.findIndex((c,i) => c.callsign===cs && i!==editingIndex);
+    if(dup !== -1) return alert('Callsign already in net');
 
-    const entry={callsign:cs, name, comments};
-    if(editingIndex!==-1){ checkins[editingIndex]=entry; editingIndex=-1; }
-    else{ checkins.push(entry); }
+    const entry = {callsign: cs, name, comments};
 
-    roster.set(cs,{name,comments});
-    renderTable(); updateTotals(); renderRoster(); clearInputs();
+    if(editingIndex !== -1){
+        checkins[editingIndex] = entry;
+        editingIndex = -1;
+    } else {
+        checkins.push(entry);
+    }
+
+    // Only save to permanent roster if NO question mark
+    if(!cs.includes('?')){
+        roster.set(cs, {name, comments});
+        renderRoster();
+    }
+
+    renderTable();
+    updateTotals();
+    clearInputs();
 }
+
 function editCheckIn(i){
-    const c=checkins[i];
-    document.getElementById('callsign').value=c.callsign;
-    document.getElementById('name').value=c.name;
-    document.getElementById('comments').value=c.comments;
-    editingIndex=i;
+    const c = checkins[i];
+    document.getElementById('callsign').value = c.callsign;
+    document.getElementById('name').value = c.name;
+    document.getElementById('comments').value = c.comments;
+    editingIndex = i;
 }
+
 function deleteCheckIn(i){
-    if(confirm('Delete this check-in?')){ checkins.splice(i,1); renderTable(); updateTotals(); }
+    if(confirm('Delete this check-in?')){
+        checkins.splice(i,1);
+        renderTable();
+        updateTotals();
+    }
 }
+
 function clearInputs(){
-    document.getElementById('callsign').value=
-    document.getElementById('name').value=
-    document.getElementById('comments').value='';
-    editingIndex=-1;
+    document.getElementById('callsign').value = '';
+    document.getElementById('name').value = '';
+    document.getElementById('comments').value = '';
+    editingIndex = -1;
 }
 
 // ——————— Rendering ———————
 function renderTable(){
-    const tbody=document.querySelector('#checkinsTable tbody');
-    tbody.innerHTML='';
-    checkins.forEach((c,i)=>{
-        const tr=document.createElement('tr');
-        tr.innerHTML=`<td><strong>${c.callsign}</strong></td><td>${c.name}</td><td>${c.comments}</td>
+    const tbody = document.querySelector('#checkinsTable tbody');
+    tbody.innerHTML = '';
+    checkins.forEach((c,i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><strong>${c.callsign}</strong></td><td>${c.name}</td><td>${c.comments}</td>
             <td><button onclick="editCheckIn(${i})">Edit</button>
                 <button onclick="deleteCheckIn(${i})">Del</button></td>`;
         tbody.appendChild(tr);
     });
 }
+
 function renderRoster(){
-    const list=document.getElementById('rosterList');
-    if(roster.size===0){
-        list.innerHTML='<em style="color:#888;">No roster loaded</em>';
+    const list = document.getElementById('rosterList');
+    if(roster.size === 0){
+        list.innerHTML = '<em style="color:#888;">No roster loaded</em>';
         return;
     }
-    const sorted=[...roster.keys()].sort((a,b)=>a.localeCompare(b));
-    list.innerHTML='';
-    sorted.forEach(call=>{
-        const div=document.createElement('div');
-        div.className='roster-call';
-        div.textContent=call;
+    const sorted = [...roster.keys()].sort((a,b)=>a.localeCompare(b));
+    list.innerHTML = '';
+    sorted.forEach(call => {
+        const div = document.createElement('div');
+        div.className = 'roster-call';
+        div.textContent = call;
         const info = roster.get(call);
-        div.title=`${info.name||'(no name)'} — ${info.comments||'(no comment)'}`;
-        div.onclick=()=>{
-            document.getElementById('callsign').value=call;
-            document.getElementById('name').value=info.name||'';
-            document.getElementById('comments').value=info.comments||'';
+        div.title = `${info.name||'(no name)'} — ${info.comments||'(no comment)'}`;
+        div.onclick = () => {
+            document.getElementById('callsign').value = call;
+            document.getElementById('name').value = info.name||'';
+            document.getElementById('comments').value = info.comments||'';
             document.getElementById('callsign').focus();
+        };
+        div.oncontextmenu = (e) => {
+            e.preventDefault();
+            if(confirm(`Permanently remove ${call} from roster?`)){
+                roster.delete(call);
+                renderRoster();
+            }
         };
         list.appendChild(div);
     });
 }
-function updateRosterFromCurrent(){
-    checkins.forEach(c=>roster.set(c.callsign,{name:c.name||'',comments:c.comments||''}));
-    renderRoster();
-}
+
 function updateTotals(){
-    document.getElementById('totalCheckins').textContent=checkins.length;
-    if(!startTime)return;
-    const now=endTime||new Date();
-    const minutes=Math.floor((now-startTime)/60000);
-    document.getElementById('netDuration').textContent=minutes;
-    const totalSec=checkins.length*(now-startTime)/1000;
-    const h=Math.floor(totalSec/3600).toString().padStart(2,'0');
-    const m=Math.floor((totalSec%3600)/60).toString().padStart(2,'0');
-    document.getElementById('operatorTime').textContent=`${h}:${m}`;
+    document.getElementById('totalCheckins').textContent = checkins.length;
+    if(!startTime) return;
+    const now = endTime || new Date();
+    const minutes = Math.floor((now - startTime)/60000);
+    document.getElementById('netDuration').textContent = minutes;
+    const totalSec = checkins.length * (now - startTime)/1000;
+    const h = Math.floor(totalSec/3600).toString().padStart(2,'0');
+    const m = Math.floor((totalSec%3600)/60).toString().padStart(2,'0');
+    document.getElementById('operatorTime').textContent = `${h}:${m}`;
 }
 
-// ——————— Import / Export ———————
+// ——————— EXPORT ———————
 function exportData(){
-    // Build full roster array from Map
     const fullRoster = Array.from(roster.entries()).map(([callsign, info]) => ({
-        callsign,
-        name: info.name || '',
-        comments: info.comments || ''
+        callsign, name: info.name||'', comments: info.comments||''
     }));
 
-    const data={
+    const data = {
         nco,
-        startTime:startTime?.toISOString(),
-        endTime:endTime?.toISOString(),
+        startTime: startTime?.toISOString() || null,
+        endTime: endTime?.toISOString() || null,
         checkins,
-        roster: fullRoster  // <-- NEW: include everyone
+        roster: fullRoster
     };
-    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=`net_${nco}_${new Date().toISOString().slice(0,10)}.json`;
-    a.click(); URL.revokeObjectURL(a.href);
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `net_${nco}_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
+
+// ——————— IMPORT NET (replace current) ———————
 function importData(){
-    const f=document.getElementById('importFile').files[0];
-    if(!f)return alert('Select file');
-    const r=new FileReader();
-    r.onload=e=>{try{
-        const d=JSON.parse(e.target.result);
-        if(!confirm('Replace current net?'))return;
-        nco=(d.nco||'').toUpperCase();
-        startTime=d.startTime?new Date(d.startTime):null;
-        endTime=d.endTime?new Date(d.endTime):null;
-        checkins=(d.checkins||[]).map(c=>({...c, callsign: c.callsign.toUpperCase()}));
-        document.getElementById('nco').value=nco;
-        document.getElementById('netStatus').textContent=startTime?`Loaded – ${new Date(startTime).toLocaleString()} by ${nco}`:'Net not started';
-        document.getElementById('stopButton').disabled=!startTime||!!endTime;
+    const file = document.getElementById('importFile').files[0];
+    if(!file) return alert('Select a file');
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const d = JSON.parse(e.target.result);
+            if(!confirm('This will REPLACE the current net and roster. Continue?')) return;
 
-        // Restore full roster if present
-        if (d.roster && Array.isArray(d.roster)) {
+            nco = (d.nco||'').toUpperCase();
+            startTime = d.startTime ? new Date(d.startTime) : null;
+            endTime = d.endTime ? new Date(d.endTime) : null;
+            checkins = (d.checkins||[]).map(c => ({
+                callsign: c.callsign.toUpperCase(),
+                name: c.name||'',
+                comments: c.comments||''
+            }));
+
+            // Load full roster
             roster.clear();
-            d.roster.forEach(entry => {
-                roster.set(entry.callsign.toUpperCase(), {
-                    name: entry.name || '',
-                    comments: entry.comments || ''
+            if(d.roster && Array.isArray(d.roster)){
+                d.roster.forEach(entry => {
+                    const cs = entry.callsign.toUpperCase();
+                    roster.set(cs, {name: entry.name||'', comments: entry.comments||''});
                 });
-            });
-        } else {
-            updateRosterFromCurrent(); // fallback
-        }
-
-        renderTable(); updateTotals(); renderRoster();
-    }catch(err){alert('Invalid file')}};
-    r.readAsText(f);
-}
-function importRoster(){
-    const f=document.getElementById('rosterFile').files[0];
-    if(!f)return alert('Select roster file');
-    const r=new FileReader();
-    r.onload=e=>{try{
-        const d=JSON.parse(e.target.result);
-
-        // Always merge roster
-        let added = 0;
-        if (d.roster && Array.isArray(d.roster)) {
-            d.roster.forEach(entry => {
-                const cs = entry.callsign.toUpperCase();
-                if (!roster.has(cs)) added++;
-                roster.set(cs, {name: entry.name||'', comments: entry.comments||''});
-            });
-        } else if (d.checkins && Array.isArray(d.checkins)) {
-            // Legacy support
-            d.checkins.forEach(c=>{
-                const cs = c.callsign.toUpperCase();
-                if (!roster.has(cs)) added++;
-                roster.set(cs,{name:c.name||'',comments:c.comments||''});
-            });
-        }
-        renderRoster();
-
-        if(!document.getElementById('rosterOnlyImport').checked){
-            if(confirm('Also load as current net?')){
-                nco=(d.nco||'').toUpperCase();
-                startTime=d.startTime?new Date(d.startTime):null;
-                endTime=d.endTime?new Date(d.endTime):null;
-                checkins=(d.checkins||[]).map(c=>({...c, callsign: c.callsign.toUpperCase()}));
-                document.getElementById('nco').value=nco;
-                document.getElementById('netStatus').textContent=startTime?`Loaded – ${new Date(startTime).toLocaleString()} by ${nco}`:'Net not started';
-                renderTable(); updateTotals();
+            } else {
+                // fallback: rebuild from checkins
+                checkins.forEach(c => roster.set(c.callsign, {name:c.name, comments:c.comments}));
             }
+
+            document.getElementById('nco').value = nco;
+            document.getElementById('netStatus').textContent = startTime 
+                ? `Loaded – ${new Date(startTime).toLocaleString()} by ${nco}`
+                : 'Net loaded (no start time)';
+            document.getElementById('stopButton').disabled = !startTime || !!endTime;
+
+            renderTable();
+            renderRoster();
+            updateTotals();
+            alert('Net and roster imported successfully!');
+        } catch(err){
+            alert('Invalid file: ' + err.message);
         }
-        alert(`Roster merged – ${roster.size} total (${added} new)`);
-    }catch(err){alert('Error: '+err)}};
-    r.readAsText(f);
+    };
+    reader.readAsText(file);
 }
-function printLog(){window.print();}
+
+// ——————— IMPORT ROSTER ONLY (merge) ———————
+function importRoster(){
+    const file = document.getElementById('rosterFile').files[0];
+    if(!file) return alert('Select a file');
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const d = JSON.parse(e.target.result);
+            let added = 0;
+
+            // Merge roster from file
+            const sourceRoster = d.roster && Array.isArray(d.roster) ? d.roster : d.checkins || [];
+            sourceRoster.forEach(entry => {
+                const cs = (entry.callsign||'').toUpperCase();
+                if(cs && !roster.has(cs)){
+                    added++;
+                    roster.set(cs, {name: entry.name||'', comments: entry.comments||''});
+                }
+            });
+
+            renderRoster();
+
+            if(!document.getElementById('rosterOnlyImport').checked){
+                if(confirm('Also load this file as the current net?')){
+                    nco = (d.nco||'').toUpperCase();
+                    startTime = d.startTime ? new Date(d.startTime) : null;
+                    endTime = d.endTime ? new Date(d.endTime) : null;
+                    checkins = (d.checkins||[]).map(c => ({
+                        callsign: c.callsign.toUpperCase(),
+                        name: c.name||'',
+                        comments: c.comments||''
+                    }));
+                    document.getElementById('nco').value = nco;
+                    document.getElementById('netStatus').textContent = startTime 
+                        ? `Loaded – ${new Date(startTime).toLocaleString()} by ${nco}`
+                        : 'Net loaded';
+                    renderTable();
+                    updateTotals();
+                }
+            }
+            alert(`Roster merged – ${roster.size} total (${added} new)`);
+        } catch(err){
+            alert('Error: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+function printLog(){ window.print(); }
 
 // Init
-renderTable(); renderRoster();
+renderTable();
+renderRoster();
 </script>
 </body>
 </html>
-
