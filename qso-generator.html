@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QSO Card Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        form { margin-bottom: 20px; }
+        canvas { border: 1px solid black; display: none; }
+        #downloadLink { display: none; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>QSO Card Generator</h1>
+    
+    <form>
+        <label for="imageUpload">Select Image (1024x768 suggested):</label>
+        <input type="file" id="imageUpload" accept="image/*"><br><br>
+        
+        
+        <label for="textColor">Text Color:</label>
+        <select id="textColor">
+            <option value="black">Black</option>
+            <option value="white">White</option>
+        </select><br><br>
+        
+        <label for="qsoFontSize">QSO Text Size:</label>
+        <input type="number" id="qsoFontSize" value="18" min="10" max="50"><br><br>
+        
+        <h3>QSO Contact Information</h3>
+        <label for="qsoWith">Confirming QSO With:</label>
+        <input type="text" id="qsoWith"><br>
+        
+        <label for="day">Day:</label>
+        <input type="text" id="day" size="2">
+        <label for="month">Month:</label>
+        <input type="text" id="month" size="3">
+        <label for="year">Year:</label>
+        <input type="text" id="year" size="4"><br>
+        
+        <label for="utc">UTC Time:</label>
+        <input type="text" id="utc">
+        <label for="band">Band:</label>
+        <input type="text" id="band">
+        <label for="freq">Frequency:</label>
+        <input type="text" id="freq"><br>
+        
+        <label for="rstSent">RST Sent:</label>
+        <input type="text" id="rstSent">
+        <label for="rstRcvd">RST Rcvd:</label>
+        <input type="text" id="rstRcvd">
+        <label for="mode">Mode:</label>
+        <input type="text" id="mode"><br>
+        
+        <label for="comment">Comment:</label>
+        <input type="text" id="comment"><br><br>
+        
+        <button type="button" onclick="generateCard()">Generate QSO Card</button>
+    </form>
+    
+    <canvas id="canvas"></canvas>
+    <a id="downloadLink" download="qso_card.jpg">Download as JPG</a>
+    
+    <script>
+        // User information - edit these values in the HTML code
+        const userCallsign = 'Your Callsign';
+        const userName = 'Your Name';
+        const userStreetAddress = 'Your Street Address';
+        const userCityStateZip = 'City State Zip';
+        
+        // QSO fields configuration
+        const fields = [
+            {label: 'Confirming QSO With', id: 'qsoWith'},
+            {label: 'Day', id: 'day'},
+            {label: 'Month', id: 'month'},
+            {label: 'Year', id: 'year'},
+            {label: 'UTC Time', id: 'utc'},
+            {label: 'Band', id: 'band'},
+            {label: 'Frequency', id: 'freq'},
+            {label: 'RST Sent', id: 'rstSent'},
+            {label: 'RST Rcvd', id: 'rstRcvd'},
+            {label: 'Mode', id: 'mode'},
+            {label: 'Comment', id: 'comment'}
+        ];
+        
+        function generateCard() {
+            const fileInput = document.getElementById('imageUpload');
+            if (!fileInput.files.length) {
+                alert('Please select an image file.');
+                return;
+            }
+            
+            const textColor = document.getElementById('textColor').value;
+            const qsoFontSize = parseInt(document.getElementById('qsoFontSize').value) || 18;
+            
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const image = new Image();
+                image.onload = function() {
+                    const canvas = document.getElementById('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    ctx.drawImage(image, 0, 0);
+                    
+                    // Set styles
+                    const padding = 10;
+                    const userFontSize = 18;
+                    const userLineHeight = 24;
+                    const boxHeight = qsoFontSize + 2 * padding;
+                    const rowSpacing = 10;
+                    ctx.fillStyle = textColor;
+                    ctx.strokeStyle = textColor;
+                    ctx.lineWidth = 1;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    
+                    // Draw user info at top center without field names
+                    ctx.font = `${userFontSize}px Arial`;
+                    const userLines = [
+                        userCallsign,
+                        userName,
+                        userStreetAddress,
+                        userCityStateZip
+                    ];
+                    let topY = 20;
+                    const centerX = canvas.width / 2;
+                    userLines.forEach(line => {
+                        ctx.fillText(line, centerX, topY);
+                        topY += userLineHeight;
+                    });
+                    
+                    // Set font for QSO
+                    ctx.font = `${qsoFontSize}px Arial`;
+                    
+                    // Split fields
+                    const mainFields = fields.slice(0, 10);
+                    const commentField = fields[10];
+                    
+                    // Prepare main fields column widths: max of label and value
+                    let mainTotalWidth = 0;
+                    mainFields.forEach(field => {
+                        const value = document.getElementById(field.id).value || '';
+                        const labelWidth = ctx.measureText(field.label).width + 2 * padding;
+                        const valueWidth = ctx.measureText(value).width + 2 * padding;
+                        field.columnWidth = Math.max(labelWidth, valueWidth);
+                        mainTotalWidth += field.columnWidth;
+                    });
+                    
+                    // Prepare comment: full width for value only
+                    const commentValue = document.getElementById(commentField.id).value || '';
+                    const commentWidth = ctx.measureText(commentValue).width + 2 * padding;
+                    const commentTotalWidth = Math.max(commentWidth, mainTotalWidth); // Span at least the main width
+                    
+                    // Calculate Y positions
+                    const labelRowY = canvas.height - (boxHeight * 3) - (rowSpacing * 2) - 20; // Three rows: labels, values, comment
+                    const valueRowY = labelRowY + boxHeight + rowSpacing;
+                    const commentRowY = valueRowY + boxHeight + rowSpacing;
+                    
+                    // Draw main QSO labels (upper row)
+                    let currentX = (canvas.width - mainTotalWidth) / 2;
+                    mainFields.forEach(field => {
+                        // Draw label box and text
+                        ctx.strokeRect(currentX, labelRowY, field.columnWidth, boxHeight);
+                        ctx.fillText(field.label, currentX + field.columnWidth / 2, labelRowY + boxHeight / 2);
+                        currentX += field.columnWidth;
+                    });
+                    
+                    // Draw main QSO values (lower row)
+                    currentX = (canvas.width - mainTotalWidth) / 2;
+                    mainFields.forEach(field => {
+                        const value = document.getElementById(field.id).value || '';
+                        // Draw value box and text
+                        ctx.strokeRect(currentX, valueRowY, field.columnWidth, boxHeight);
+                        ctx.fillText(value, currentX + field.columnWidth / 2, valueRowY + boxHeight / 2);
+                        currentX += field.columnWidth;
+                    });
+                    
+                    // Draw comment (third row, value only, centered)
+                    currentX = (canvas.width - commentTotalWidth) / 2;
+                    ctx.strokeRect(currentX, commentRowY, commentTotalWidth, boxHeight);
+                    ctx.fillText(commentValue, currentX + commentTotalWidth / 2, commentRowY + boxHeight / 2);
+                    
+                    // Show canvas
+                    canvas.style.display = 'block';
+                    
+                    // Enable download
+                    const downloadLink = document.getElementById('downloadLink');
+                    downloadLink.href = canvas.toDataURL('image/jpeg');
+                    downloadLink.style.display = 'block';
+                };
+                image.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+    </script>
+</body>
+</html>
