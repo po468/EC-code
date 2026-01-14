@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ham Radio Net Control Logger - v8.5</title>
+<title>Ham Radio Net Control Logger - v8.6</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
     html,body{height:100%;margin:0;font-family:Arial,sans-serif;display:flex;flex-direction:column;font-size:14px;background:#f4f4f4;}
@@ -38,7 +38,7 @@
 <body>
 
 <div id="header">
-    <h1>Ham Radio Net Control Logger - v8.5</h1>
+    <h1>Ham Radio Net Control Logger - v8.6</h1>
     <div id="netSetup">
         NCO: <input type="text" id="nco" class="uppercase-input" placeholder="Your callsign" style="width:100px;">
         <button id="startButton" onclick="startNet()">Start Net</button>
@@ -212,7 +212,7 @@ function renderRoster(){
             document.getElementById('callsign').value = call;
             document.getElementById('name').value = info.name||'';
             document.getElementById('comments').value = info.comments||'';
-            document.getElementById('callsign').focus();
+            addOrUpdateCheckIn();
         };
         div.oncontextmenu = (e) => {
             e.preventDefault();
