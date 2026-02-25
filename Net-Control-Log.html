@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ham Radio Net Control Logger - v8.6</title>
+<title>Ham Radio Net Control Logger - v8.7</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
     html,body{height:100%;margin:0;font-family:Arial,sans-serif;display:flex;flex-direction:column;font-size:14px;background:#f4f4f4;}
@@ -38,7 +38,7 @@
 <body>
 
 <div id="header">
-    <h1>Ham Radio Net Control Logger - v8.6</h1>
+    <h1>Ham Radio Net Control Logger - v8.7</h1>
     <div id="netSetup">
         NCO: <input type="text" id="nco" class="uppercase-input" placeholder="Your callsign" style="width:100px;">
         <button id="startButton" onclick="startNet()">Start Net</button>
@@ -81,6 +81,7 @@
 
     <div id="rightPanel">
         <h2>Roster <small>(right-click = remove)</small></h2>
+        <input type="text" id="rosterSearch" class="uppercase-input" placeholder="Search callsign" style="width:100%; margin-bottom:10px;">
         <div id="rosterList">No roster loaded</div>
     </div>
 </div>
@@ -110,8 +111,16 @@ function startNet(){
     document.getElementById('stopButton').disabled = false;
 
     if(!checkins.some(c => c.callsign === nco)){
-        checkins.push({callsign:nco, name:'', comments:'Net Control'});
-        roster.set(nco, {name:'', comments:'Net Control'});
+        let name = '';
+        let comments = 'Net Control';
+        if(roster.has(nco)){
+            const info = roster.get(nco);
+            name = info.name;
+            comments = info.comments; // do not change comment
+        } else {
+            roster.set(nco, {name, comments});
+        }
+        checkins.push({callsign:nco, name, comments});
     }
     timerInterval = setInterval(updateTotals, 1000);
     renderTable();
@@ -194,15 +203,19 @@ function renderTable(){
     });
 }
 
-function renderRoster(){
+function renderRoster(filter = ''){
     const list = document.getElementById('rosterList');
     if(roster.size === 0){
         list.innerHTML = '<em style="color:#888;">No roster loaded</em>';
         return;
     }
-    const sorted = [...roster.keys()].sort((a,b)=>a.localeCompare(b));
+    const filtered = [...roster.keys()].filter(call => call.includes(filter)).sort((a,b)=>a.localeCompare(b));
     list.innerHTML = '';
-    sorted.forEach(call => {
+    if(filtered.length === 0){
+        list.innerHTML = '<em style="color:#888;">No matches</em>';
+        return;
+    }
+    filtered.forEach(call => {
         const div = document.createElement('div');
         div.className = 'roster-call';
         div.textContent = call;
@@ -213,12 +226,14 @@ function renderRoster(){
             document.getElementById('name').value = info.name||'';
             document.getElementById('comments').value = info.comments||'';
             addOrUpdateCheckIn();
+            document.getElementById('rosterSearch').value = '';
+            renderRoster();
         };
         div.oncontextmenu = (e) => {
             e.preventDefault();
             if(confirm(`Permanently remove ${call} from roster?`)){
                 roster.delete(call);
-                renderRoster();
+                renderRoster(filter);
             }
         };
         list.appendChild(div);
@@ -357,6 +372,11 @@ function importRoster(){
 }
 
 function printLog(){ window.print(); }
+
+// Roster search listener
+document.getElementById('rosterSearch').addEventListener('input', function() {
+    renderRoster(this.value.toUpperCase());
+});
 
 // Init
 renderTable();
