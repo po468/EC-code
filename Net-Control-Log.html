@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ham Radio Net Control Logger - v8.7</title>
+<title>Ham Radio Net Control Logger - v8.9</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
     html,body{height:100%;margin:0;font-family:Arial,sans-serif;display:flex;flex-direction:column;font-size:14px;background:#f4f4f4;}
@@ -38,7 +38,7 @@
 <body>
 
 <div id="header">
-    <h1>Ham Radio Net Control Logger - v8.7</h1>
+    <h1>Ham Radio Net Control Logger - v8.9</h1>
     <div id="netSetup">
         NCO: <input type="text" id="nco" class="uppercase-input" placeholder="Your callsign" style="width:100px;">
         <button id="startButton" onclick="startNet()">Start Net</button>
@@ -52,6 +52,7 @@
         <section id="addCheckin">
             <h2>Add / Check-in</h2>
             <input type="text" id="callsign" class="uppercase-input" placeholder="Callsign" style="width:110px;font-weight:bold;">
+            <button onclick="lookupQRZ()" id="qrzButton" disabled>QRZ Lookup</button>
             <input type="text" id="name" placeholder="Name" style="width:110px;">
             <input type="text" id="comments" placeholder="Location / Comments" style="flex:1;">
             <button onclick="addOrUpdateCheckIn()">Add / Update</button>
@@ -65,7 +66,7 @@
         </table>
 
         <p>Net Duration: <strong id="netDuration">0</strong> min | 
-           Total Operator Time: <strong id="operatorTime">00:00</strong></p>
+           Total Operator Time: <strong id="operatorTime">00:00 </strong></p>
 
         <section id="dataManagement">
             <h2>Data Management</h2>
@@ -76,12 +77,17 @@
             <label><input type="checkbox" id="rosterOnlyImport" checked> Roster only</label>
             <button onclick="importRoster()">Load Roster</button>
             <button onclick="printLog()">Print Log</button>
+
+            <h2>QRZ Integration (optional)</h2>
+            Username: <input type="text" id="qrzUser" placeholder="QRZ Username" style="width:120px;">
+            Password: <input type="password" id="qrzPass" placeholder="QRZ Password" style="width:120px;">
+            <button onclick="loginQRZ()">Login to QRZ</button>
+            <span id="qrzStatus"></span>
         </section>
     </div>
 
     <div id="rightPanel">
         <h2>Roster <small>(right-click = remove)</small></h2>
-        <input type="text" id="rosterSearch" class="uppercase-input" placeholder="Search callsign" style="width:100%; margin-bottom:10px;">
         <div id="rosterList">No roster loaded</div>
     </div>
 </div>
@@ -100,6 +106,7 @@ document.querySelectorAll('.uppercase-input').forEach(input => {
 let startTime = null, endTime = null, timerInterval = null;
 let checkins = [], nco = '', editingIndex = -1;
 let roster = new Map(); // permanent roster: callsign → {name, comments}
+let qrzSessionKey = '';
 
 // ——————— Net Control ———————
 function startNet(){
@@ -110,16 +117,16 @@ function startNet(){
     document.getElementById('netStatus').textContent = `Net started ${startTime.toLocaleString()} by ${nco}`;
     document.getElementById('stopButton').disabled = false;
 
+    let name = '';
+    let comments = 'Net Control';
+    if(roster.has(nco)){
+        const info = roster.get(nco);
+        name = info.name;
+        comments = info.comments; // do not change comment
+    } else {
+        roster.set(nco, {name, comments});
+    }
     if(!checkins.some(c => c.callsign === nco)){
-        let name = '';
-        let comments = 'Net Control';
-        if(roster.has(nco)){
-            const info = roster.get(nco);
-            name = info.name;
-            comments = info.comments; // do not change comment
-        } else {
-            roster.set(nco, {name, comments});
-        }
         checkins.push({callsign:nco, name, comments});
     }
     timerInterval = setInterval(updateTotals, 1000);
@@ -133,6 +140,78 @@ function stopNet(){
     document.getElementById('netStatus').textContent += ` | Ended ${endTime.toLocaleString()}`;
     document.getElementById('stopButton').disabled = true;
     updateTotals();
+}
+
+// ——————— QRZ Integration ———————
+function loginQRZ(){
+    const user = document.getElementById('qrzUser').value.trim();
+    const pass = document.getElementById('qrzPass').value.trim();
+    if(!user || !pass) return alert('Enter QRZ username and password');
+
+    fetch(`https://xmldata.qrz.com/xml/current/?username=${encodeURIComponent(user)};password=${encodeURIComponent(pass)};agent=HamNetLogger-v8.6`)
+        .then(res => res.text())
+        .then(xml => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xml, 'text/xml');
+            const key = doc.querySelector('Key')?.textContent;
+            const error = doc.querySelector('Error')?.textContent;
+            if(error){
+                document.getElementById('qrzStatus').textContent = 'Error';
+                alert('QRZ Login Error: ' + error);
+                return;
+            }
+            if(key){
+                qrzSessionKey = key;
+                document.getElementById('qrzStatus').textContent = 'Logged in';
+                document.getElementById('qrzStatus').style.color = 'green';
+                document.getElementById('qrzButton').disabled = false;
+            }
+        })
+        .catch(err => {
+            alert('Network Error: ' + err);
+        });
+}
+
+function lookupQRZ(){
+    if(!qrzSessionKey){
+        alert('Please login to QRZ first');
+        return;
+    }
+    const cs = document.getElementById('callsign').value.trim().toUpperCase();
+    if(!cs) return alert('Enter callsign first');
+
+    fetch(`https://xmldata.qrz.com/xml/current/?s=${qrzSessionKey};callsign=${encodeURIComponent(cs)}`)
+        .then(res => res.text())
+        .then(xml => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xml, 'text/xml');
+            const error = doc.querySelector('Error')?.textContent;
+            if(error){
+                if(error.toLowerCase().includes('session')){
+                    qrzSessionKey = '';
+                    document.getElementById('qrzStatus').textContent = 'Session expired';
+                    document.getElementById('qrzStatus').style.color = 'red';
+                    document.getElementById('qrzButton').disabled = true;
+                    alert('QRZ Session expired. Please login again.');
+                } else {
+                    alert('QRZ Error: ' + error);
+                }
+                return;
+            }
+            const fname = doc.querySelector('fname')?.textContent || '';
+            const name = doc.querySelector('name')?.textContent || '';
+            const addr2 = doc.querySelector('addr2')?.textContent || '';
+            const state = doc.querySelector('state')?.textContent || '';
+            const country = doc.querySelector('country')?.textContent || '';
+            const grid = doc.querySelector('grid')?.textContent || '';
+
+            document.getElementById('name').value = `${fname} ${name}`.trim();
+            let location = `${addr2}${state ? ', ' + state : ''}${country ? ' ' + country : ''}${grid ? ' ' + grid : ''}`.trim();
+            document.getElementById('comments').value = location;
+        })
+        .catch(err => {
+            alert('Network Error: ' + err);
+        });
 }
 
 // ——————— Check-in Handling ———————
@@ -173,6 +252,7 @@ function editCheckIn(i){
     document.getElementById('name').value = c.name;
     document.getElementById('comments').value = c.comments;
     editingIndex = i;
+    renderRoster(c.callsign);
 }
 
 function deleteCheckIn(i){
@@ -188,6 +268,7 @@ function clearInputs(){
     document.getElementById('name').value = '';
     document.getElementById('comments').value = '';
     editingIndex = -1;
+    renderRoster('');
 }
 
 // ——————— Rendering ———————
@@ -226,8 +307,6 @@ function renderRoster(filter = ''){
             document.getElementById('name').value = info.name||'';
             document.getElementById('comments').value = info.comments||'';
             addOrUpdateCheckIn();
-            document.getElementById('rosterSearch').value = '';
-            renderRoster();
         };
         div.oncontextmenu = (e) => {
             e.preventDefault();
@@ -373,8 +452,8 @@ function importRoster(){
 
 function printLog(){ window.print(); }
 
-// Roster search listener
-document.getElementById('rosterSearch').addEventListener('input', function() {
+// Callsign input listener for filtering roster
+document.getElementById('callsign').addEventListener('input', function() {
     renderRoster(this.value.toUpperCase());
 });
 
