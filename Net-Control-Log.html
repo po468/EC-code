@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ham Radio Net Control Logger - v8.9</title>
+<title>Ham Radio Net Control Logger - v9</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
     html,body{height:100%;margin:0;font-family:Arial,sans-serif;display:flex;flex-direction:column;font-size:14px;background:#f4f4f4;}
@@ -26,6 +26,7 @@
         user-select:none;
     }
     .roster-call:hover{background:#bbdefb;}
+    .selected {background:#bbdefb !important;}
     #netStatus{margin-top:8px;font-weight:bold;color:#006400;}
     .uppercase-input {text-transform:uppercase;}
     @media (max-width:800px){
@@ -38,7 +39,7 @@
 <body>
 
 <div id="header">
-    <h1>Ham Radio Net Control Logger - v8.9</h1>
+    <h1>Ham Radio Net Control Logger - v9 by N3WS</h1>
     <div id="netSetup">
         NCO: <input type="text" id="nco" class="uppercase-input" placeholder="Your callsign" style="width:100px;">
         <button id="startButton" onclick="startNet()">Start Net</button>
@@ -51,7 +52,10 @@
     <div id="leftPanel">
         <section id="addCheckin">
             <h2>Add / Check-in</h2>
-            <input type="text" id="callsign" class="uppercase-input" placeholder="Callsign" style="width:110px;font-weight:bold;">
+            <div style="position:relative;">
+                <input type="text" id="callsign" class="uppercase-input" placeholder="Callsign" style="width:110px;font-weight:bold;">
+                <div id="suggestions" style="position:absolute; top:100%; left:0; width:200px; max-height:200px; overflow-y:auto; background:white; border:1px solid #ddd; display:none; z-index:100;"></div>
+            </div>
             <button onclick="lookupQRZ()" id="qrzButton" disabled>QRZ Lookup</button>
             <input type="text" id="name" placeholder="Name" style="width:110px;">
             <input type="text" id="comments" placeholder="Location / Comments" style="flex:1;">
@@ -66,7 +70,7 @@
         </table>
 
         <p>Net Duration: <strong id="netDuration">0</strong> min | 
-           Total Operator Time: <strong id="operatorTime">00:00 </strong></p>
+           Total Operator Time: <strong id="operatorTime">00:00</strong></p>
 
         <section id="dataManagement">
             <h2>Data Management</h2>
@@ -107,6 +111,7 @@ let startTime = null, endTime = null, timerInterval = null;
 let checkins = [], nco = '', editingIndex = -1;
 let roster = new Map(); // permanent roster: callsign → {name, comments}
 let qrzSessionKey = '';
+let selectedIndex = -1;
 
 // ——————— Net Control ———————
 function startNet(){
@@ -244,6 +249,7 @@ function addOrUpdateCheckIn(){
     renderTable();
     updateTotals();
     clearInputs();
+    document.getElementById('suggestions').style.display = 'none';
 }
 
 function editCheckIn(i){
@@ -252,7 +258,6 @@ function editCheckIn(i){
     document.getElementById('name').value = c.name;
     document.getElementById('comments').value = c.comments;
     editingIndex = i;
-    renderRoster(c.callsign);
 }
 
 function deleteCheckIn(i){
@@ -268,7 +273,10 @@ function clearInputs(){
     document.getElementById('name').value = '';
     document.getElementById('comments').value = '';
     editingIndex = -1;
-    renderRoster('');
+    document.getElementById('suggestions').innerHTML = '';
+    document.getElementById('suggestions').style.display = 'none';
+    selectedIndex = -1;
+    document.getElementById('callsign').focus();
 }
 
 // ——————— Rendering ———————
@@ -284,19 +292,15 @@ function renderTable(){
     });
 }
 
-function renderRoster(filter = ''){
+function renderRoster(){
     const list = document.getElementById('rosterList');
     if(roster.size === 0){
         list.innerHTML = '<em style="color:#888;">No roster loaded</em>';
         return;
     }
-    const filtered = [...roster.keys()].filter(call => call.includes(filter)).sort((a,b)=>a.localeCompare(b));
+    const sorted = [...roster.keys()].sort((a,b)=>a.localeCompare(b));
     list.innerHTML = '';
-    if(filtered.length === 0){
-        list.innerHTML = '<em style="color:#888;">No matches</em>';
-        return;
-    }
-    filtered.forEach(call => {
+    sorted.forEach(call => {
         const div = document.createElement('div');
         div.className = 'roster-call';
         div.textContent = call;
@@ -312,7 +316,7 @@ function renderRoster(filter = ''){
             e.preventDefault();
             if(confirm(`Permanently remove ${call} from roster?`)){
                 roster.delete(call);
-                renderRoster(filter);
+                renderRoster();
             }
         };
         list.appendChild(div);
@@ -452,14 +456,120 @@ function importRoster(){
 
 function printLog(){ window.print(); }
 
-// Callsign input listener for filtering roster
-document.getElementById('callsign').addEventListener('input', function() {
-    renderRoster(this.value.toUpperCase());
+// ——————— Suggestions Handling ———————
+const callsignInput = document.getElementById('callsign');
+const suggestionsDiv = document.getElementById('suggestions');
+
+callsignInput.addEventListener('input', function() {
+    selectedIndex = -1;
+    let val = this.value.trim().toUpperCase();
+    suggestionsDiv.innerHTML = '';
+    suggestionsDiv.style.display = 'none';
+    if (!val) return;
+    let matches = [...roster.keys()].filter(k => k.includes(val)).sort();
+    if (matches.length === 0) return;
+    suggestionsDiv.style.display = 'block';
+    matches.forEach(call => {
+        const div = document.createElement('div');
+        div.className = 'roster-call';
+        div.textContent = call;
+        const info = roster.get(call);
+        div.title = `${info.name||'(no name)'} — ${info.comments||'(no comment)'}`;
+        div.onclick = () => selectSuggestion(call);
+        suggestionsDiv.appendChild(div);
+    });
 });
+
+callsignInput.addEventListener('keydown', function(event) {
+    if (suggestionsDiv.style.display === 'none') return;
+    const children = suggestionsDiv.children;
+    if (children.length === 0) return;
+
+    switch (event.key) {
+        case 'ArrowDown':
+            event.preventDefault();
+            if (selectedIndex < children.length - 1) selectedIndex++;
+            highlightSelected();
+            updateInputFromSelected();
+            break;
+        case 'ArrowUp':
+            event.preventDefault();
+            if (selectedIndex > 0) selectedIndex--;
+            highlightSelected();
+            updateInputFromSelected();
+            break;
+        case 'Enter':
+            event.preventDefault();
+            if (selectedIndex >= 0) {
+                selectSuggestion(children[selectedIndex].textContent);
+            } else {
+                populateIfExists();
+                addOrUpdateCheckIn();
+            }
+            break;
+        case 'Escape':
+            suggestionsDiv.style.display = 'none';
+            break;
+    }
+});
+
+callsignInput.addEventListener('blur', function(event) {
+    if (!event.relatedTarget || !suggestionsDiv.contains(event.relatedTarget)) {
+        suggestionsDiv.style.display = 'none';
+    }
+    populateIfExists();
+});
+
+function highlightSelected() {
+    const children = suggestionsDiv.children;
+    for (let i = 0; i < children.length; i++) {
+        children[i].classList.remove('selected');
+    }
+    if (selectedIndex >= 0) {
+        children[selectedIndex].classList.add('selected');
+        children[selectedIndex].scrollIntoView({ block: 'nearest' });
+    }
+}
+
+function updateInputFromSelected() {
+    if (selectedIndex >= 0) {
+        const call = suggestionsDiv.children[selectedIndex].textContent;
+        callsignInput.value = call;
+        const info = roster.get(call);
+        document.getElementById('name').value = info.name || '';
+        document.getElementById('comments').value = info.comments || '';
+    }
+}
+
+function selectSuggestion(call) {
+    callsignInput.value = call;
+    const info = roster.get(call);
+    document.getElementById('name').value = info.name || '';
+    document.getElementById('comments').value = info.comments || '';
+    suggestionsDiv.style.display = 'none';
+    addOrUpdateCheckIn();
+}
+
+function populateIfExists() {
+    const cs = callsignInput.value.trim().toUpperCase();
+    if (!cs) return;
+    const dupIndex = checkins.findIndex(c => c.callsign === cs);
+    if (dupIndex !== -1) {
+        const current = checkins[dupIndex];
+        if (!document.getElementById('name').value) document.getElementById('name').value = current.name;
+        if (!document.getElementById('comments').value) document.getElementById('comments').value = current.comments;
+        editingIndex = dupIndex;
+    } else if (roster.has(cs)) {
+        const info = roster.get(cs);
+        if (!document.getElementById('name').value) document.getElementById('name').value = info.name;
+        if (!document.getElementById('comments').value) document.getElementById('comments').value = info.comments;
+    }
+}
 
 // Init
 renderTable();
 renderRoster();
+callsignInput.focus();
 </script>
 </body>
 </html>
