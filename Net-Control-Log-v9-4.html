@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ham Radio Net Control Logger - v9.4</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    html,body{height:100%;margin:0;font-family:Arial,sans-serif;display:flex;flex-direction:column;font-size:14px;background:#f4f4f4;}
+    #header{background:white;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.1);z-index:10;}
+    #main{display:flex;flex:1;overflow:hidden;}
+    #leftPanel{flex:1;overflow-y:auto;padding:10px;background:#fff;position:relative;}
+    #rightPanel{width:220px;background:#fff;border-left:1px solid #ddd;overflow-y:auto;padding:10px;font-size:13px;}
+   
+    #stickyTop {position: sticky; top: 0; background: #fff; padding: 8px 0 12px 0; margin: -10px -10px 18px -10px; border-bottom: 2px solid #1976d2; z-index: 10; box-shadow: 0 2px 6px rgba(0,0,0,0.1);}
+    #addCheckin {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;}
+   
+    table{border-collapse:collapse;width:100%;margin:15px 0;}
+    th,td{border:1px solid #ddd;padding:6px;text-align:left;font-size:12px;vertical-align:middle;}
+    th{background:#f2f2f2;}
+    button{margin:2px 2px;padding:4px 8px;font-size:12px;cursor:pointer;}
+    input{padding:4px;font-size:12px;box-sizing:border-box;}
+    h1{margin:0;font-size:19px;}
+    h2{margin:6px 0 4px;font-size:15px;}
+    #startButton{background:green;color:white;font-weight:bold;}
+    #stopButton{background:red;color:white;font-weight:bold;}
+    #clearNetButton{background:#d32f2f;color:white;font-weight:bold;}
+   
+    .roster-call{display:block;padding:6px 8px;margin:2px 0;border-radius:4px;cursor:pointer;background:#e8e8e8;text-transform:uppercase;font-weight:bold;user-select:none;}
+    .roster-call:hover{background:#bbdefb;}
+    .selected {background:#bbdefb !important; border-left:4px solid #1976d2;}
+    .editing td {background:#fff8e1 !important;}
+    .edit-input {width:100%; border:1px solid #1976d2; padding:3px;}
+    td.number {width:40px; text-align:center; font-weight:bold; background:#f9f9f9;}
+   
+    #suggestions {position:absolute;top:100%;left:0;width:360px;max-height:260px;overflow-y:auto;background:white;border:1px solid #ddd;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:none;z-index:100;border-radius:4px;}
+    #suggestions .roster-call {padding:8px 10px;border-bottom:1px solid #eee;font-size:13.5px;}
+    #suggestions .roster-call:last-child {border-bottom:none;}
+    #suggestions .roster-call:hover {background:#e3f2fd;}
+    .suggestion-call {font-weight:bold;}
+    .suggestion-name {font-size:12px;color:#555;margin-top:2px;display:block;}
+</style>
+</head>
+<body>
+<div id="header">
+    <h1>Ham Radio Net Control Logger - v9.4 by N3WS</h1>
+    <div id="netSetup">
+        NCO: <input type="text" id="nco" class="uppercase-input" placeholder="Your callsign" style="width:100px;">
+        <button id="startButton" onclick="startNet()">Start Net</button>
+        <button id="stopButton" onclick="stopNet()" disabled>Stop Net</button>
+        <button id="clearNetButton" onclick="clearNet()">Clear Net &amp; Start New</button>
+        <span id="netStatus">Net not started yet.</span>
+    </div>
+</div>
+<div id="main">
+    <div id="leftPanel">
+        <div id="stickyTop">
+            <section id="addCheckin">
+                <h2>Add / Check-in</h2>
+                <div style="position:relative;">
+                    <input type="text" id="callsign" class="uppercase-input" placeholder="Callsign" style="width:130px;font-weight:bold;">
+                    <div id="suggestions"></div>
+                </div>
+                <button onclick="lookupQRZ()" id="qrzButton" disabled>QRZ Lookup</button>
+                <input type="text" id="name" placeholder="Name" style="width:130px;">
+                <input type="text" id="comments" placeholder="Location / Comments" style="flex:1;min-width:200px;">
+                <button onclick="addOrUpdateCheckIn()">Add / Update</button>
+                <button onclick="clearInputs()">Clear</button>
+            </section>
+            <h2>Current Check-ins (<span id="totalCheckins">0</span>) — Net Duration: <strong id="netDuration">0</strong> min | Total Operator Time: <strong id="operatorTime">00:00</strong></h2>
+            <i>Putting a "?" anywhere in the callsign will not add it to the roster.</i>
+        </div>
+        <table id="checkinsTable">
+            <thead><tr><th>#</th><th>Callsign</th><th>Name</th><th>Location/Comments</th><th>Actions</th></tr></thead>
+            <tbody></tbody>
+        </table>
+
+        <section id="dataManagement">
+            <h2>Export / Import</h2>
+            <button onclick="exportData()">Export Net (JSON)</button>
+            <input type="file" id="importFile" accept=".json">
+            <button onclick="importData()">Import Net (replace everything)</button><br><br>
+
+            <h2>Roster</h2>
+            <input type="file" id="rosterFile" accept=".json">
+            <button onclick="importRoster()">Load Roster</button>
+            
+            <button onclick="clearSavedData()" style="background:#d32f2f;color:white;margin-left:15px;">Clear Browser Memory</button>
+            <button onclick="printLog()">Print Log</button>
+
+            <h2>QRZ Integration (optional)</h2>
+            Username: <input type="text" id="qrzUser" placeholder="QRZ Username" style="width:120px;">
+            Password: <input type="password" id="qrzPass" placeholder="QRZ Password" style="width:120px;">
+            <button onclick="loginQRZ()">Login to QRZ</button>
+            <span id="qrzStatus"></span>
+        </section>
+    </div>
+    <div id="rightPanel">
+        <h2>Roster <small>(right-click = remove | filters live)</small></h2>
+        <div id="rosterList">No roster loaded</div>
+    </div>
+</div>
+
+<script>
+// ==================== PERSISTENCE ====================
+const STORAGE_KEY = 'hamNetLogger_v9.4';
+
+function saveToLocalStorage() {
+    const data = {
+        nco, startTime: startTime?.toISOString() || null,
+        endTime: endTime?.toISOString() || null,
+        checkins, 
+        roster: Array.from(roster.entries()).map(([callsign, info]) => ({
+            callsign, name: info.name||'', comments: info.comments||''
+        }))
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadFromLocalStorage() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return false;
+    try {
+        const d = JSON.parse(saved);
+        nco = (d.nco || '').toUpperCase();
+        startTime = d.startTime ? new Date(d.startTime) : null;
+        endTime = d.endTime ? new Date(d.endTime) : null;
+        checkins = d.checkins || [];
+        roster.clear();
+        if (d.roster) d.roster.forEach(r => {
+            const cs = (r.callsign || '').toUpperCase();
+            if (cs) roster.set(cs, {name: r.name||'', comments: r.comments||''});
+        });
+        return true;
+    } catch(e) { return false; }
+}
+
+function clearSavedData() {
+    if (confirm("Clear ALL saved data from browser memory?")) {
+        localStorage.removeItem(STORAGE_KEY);
+        alert("Browser memory cleared. Refresh the page.");
+    }
+}
+
+// ==================== VARIABLES ====================
+let startTime = null, endTime = null, timerInterval = null;
+let checkins = [], nco = '';
+let roster = new Map();
+let qrzSessionKey = '';
+let selectedIndex = -1;
+let editingIndex = -1;
+
+const callsignInput = document.getElementById('callsign');
+const suggestionsDiv = document.getElementById('suggestions');
+
+// Uppercase
+document.querySelectorAll('.uppercase-input').forEach(input => {
+    input.addEventListener('input', function() {
+        const s = this.selectionStart, e = this.selectionEnd;
+        this.value = this.value.toUpperCase();
+        this.setSelectionRange(s, e);
+    });
+});
+
+// ==================== LOCAL TIME HELPER ====================
+function localTimeStr(date) {
+    if (!date) return '';
+    return date.toLocaleString('en-US', { 
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: true 
+    });
+}
+
+// ==================== QRZ ====================
+function loginQRZ() {
+    const user = document.getElementById('qrzUser').value.trim();
+    const pass = document.getElementById('qrzPass').value.trim();
+    if(!user || !pass) return alert('Enter QRZ username and password');
+    fetch(`https://xmldata.qrz.com/xml/current/?username=${encodeURIComponent(user)};password=${encodeURIComponent(pass)};agent=HamNetLogger-v9`)
+        .then(res => res.text()).then(xml => {
+            const doc = new DOMParser().parseFromString(xml, 'text/xml');
+            const key = doc.querySelector('Key')?.textContent;
+            const error = doc.querySelector('Error')?.textContent;
+            if(error) return alert('QRZ Error: ' + error);
+            if(key) {
+                qrzSessionKey = key;
+                document.getElementById('qrzStatus').innerHTML = '✓ Logged in';
+                document.getElementById('qrzStatus').style.color = 'green';
+                document.getElementById('qrzButton').disabled = false;
+            }
+        }).catch(() => alert('Network error'));
+}
+
+function lookupQRZ() {
+    if(!qrzSessionKey) return alert('Login to QRZ first');
+    const cs = document.getElementById('callsign').value.trim().toUpperCase();
+    if(!cs) return alert('Enter callsign');
+    fetch(`https://xmldata.qrz.com/xml/current/?s=${qrzSessionKey};callsign=${encodeURIComponent(cs)}`)
+        .then(res => res.text()).then(xml => {
+            const doc = new DOMParser().parseFromString(xml, 'text/xml');
+            if(doc.querySelector('Error')) return alert('QRZ lookup error');
+            const fname = doc.querySelector('fname')?.textContent || '';
+            const name = doc.querySelector('name')?.textContent || '';
+            const addr2 = doc.querySelector('addr2')?.textContent || '';
+            const state = doc.querySelector('state')?.textContent || '';
+            const country = doc.querySelector('country')?.textContent || '';
+            document.getElementById('name').value = `${fname} ${name}`.trim();
+            document.getElementById('comments').value = `${addr2} ${state} ${country}`.trim();
+        }).catch(() => alert('QRZ lookup failed'));
+}
+
+// ==================== SUGGESTIONS & KEYBOARD ====================
+callsignInput.addEventListener('keydown', e => {
+    const items = suggestionsDiv.querySelectorAll('.roster-call');
+    if(!items.length) return;
+    if(e.key === 'ArrowDown') { e.preventDefault(); selectedIndex = Math.min(selectedIndex+1, items.length-1); highlightSuggestion(); }
+    else if(e.key === 'ArrowUp') { e.preventDefault(); selectedIndex = Math.max(selectedIndex-1, -1); highlightSuggestion(); }
+    else if(e.key === 'Enter') {
+        e.preventDefault();
+        if(selectedIndex >= 0) selectSuggestion(items[selectedIndex].querySelector('.suggestion-call').textContent);
+        else if(items.length === 1) selectSuggestion(items[0].querySelector('.suggestion-call').textContent);
+    } else if(e.key === 'Escape') { suggestionsDiv.style.display = 'none'; selectedIndex = -1; }
+});
+
+function highlightSuggestion() {
+    suggestionsDiv.querySelectorAll('.roster-call').forEach((el,i) => el.classList.toggle('selected', i===selectedIndex));
+}
+
+function updateSuggestions() {
+    selectedIndex = -1;
+    const val = callsignInput.value.trim().toUpperCase();
+    suggestionsDiv.innerHTML = ''; suggestionsDiv.style.display = 'none';
+    if(!val) { renderRoster(); return; }
+
+    let matches = [...roster.keys()].filter(c => c.includes(val));
+    matches.sort((a,b) => a.startsWith(val)?-1 : b.startsWith(val)?1 : a.localeCompare(b));
+
+    if(!matches.length) { renderRoster(); return; }
+
+    suggestionsDiv.style.display = 'block';
+    matches.slice(0,8).forEach(call => {
+        const info = roster.get(call) || {};
+        const div = document.createElement('div');
+        div.className = 'roster-call';
+        div.innerHTML = `<span class="suggestion-call">${call}</span><span class="suggestion-name">${info.name||'(no name)'}</span>`;
+        div.addEventListener('mousedown', () => selectSuggestion(call));
+        suggestionsDiv.appendChild(div);
+    });
+    renderRoster();
+}
+
+function selectSuggestion(call) {
+    callsignInput.value = call;
+    const info = roster.get(call) || {};
+    document.getElementById('name').value = info.name || '';
+    document.getElementById('comments').value = info.comments || '';
+    suggestionsDiv.style.display = 'none';
+    selectedIndex = -1;
+    addOrUpdateCheckIn();
+}
+
+callsignInput.addEventListener('input', updateSuggestions);
+callsignInput.addEventListener('blur', () => setTimeout(() => {
+    if(!suggestionsDiv.matches(':hover')) suggestionsDiv.style.display = 'none';
+}, 200));
+
+// ==================== INLINE EDITING ====================
+function startInlineEdit(i) { editingIndex = i; renderTable(); }
+function saveInlineEdit(i) {
+    const rows = document.querySelectorAll('#checkinsTable tbody tr');
+    checkins[i].name = rows[i].querySelector('.edit-name').value.trim();
+    checkins[i].comments = rows[i].querySelector('.edit-comments').value.trim();
+    editingIndex = -1;
+    renderTable();
+    saveToLocalStorage();
+}
+function cancelInlineEdit() { editingIndex = -1; renderTable(); }
+
+// ==================== MOVE TO SPECIFIC LINE ====================
+function moveEntry(i) {
+    const max = checkins.length;
+    const targetStr = prompt(`Move entry #${i+1} (${checkins[i].callsign}) to line number (1-${max}):`, (i+1).toString());
+    if (!targetStr) return;
+    const target = parseInt(targetStr);
+    if (isNaN(target) || target < 1 || target > max) {
+        alert('Invalid line number');
+        return;
+    }
+    if (target === i+1) return;
+
+    const item = checkins.splice(i, 1)[0];
+    checkins.splice(target-1, 0, item);
+    renderTable();
+    saveToLocalStorage();
+}
+
+// ==================== NET FUNCTIONS (NCO field is now left unchanged) ====================
+function startNet() {
+    const newNco = document.getElementById('nco').value.trim().toUpperCase();
+    if(!newNco) return alert('Enter NCO callsign');
+    if(!confirm("Start/Restart net?")) return;
+    if(confirm("Clear current check-ins?")) checkins = [];
+
+    nco = newNco;                     // update internal variable only
+    // ←←← NCO input field is deliberately NOT changed
+    startTime = new Date(); 
+    endTime = null;
+
+    document.getElementById('netStatus').textContent = `Net started ${localTimeStr(startTime)} by ${nco}`;
+    document.getElementById('stopButton').disabled = false;
+
+    if(timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(updateTotals, 1000);
+
+    if(!checkins.some(c => c.callsign === nco)) checkins.push({callsign: nco, name:'', comments:'Net Control'});
+    renderTable(); 
+    renderRoster(); 
+    saveToLocalStorage();
+    callsignInput.focus();
+}
+
+function stopNet() {
+    endTime = new Date();
+    clearInterval(timerInterval);
+    document.getElementById('netStatus').textContent = `Net started ${localTimeStr(startTime)} by ${nco} | Ended ${localTimeStr(endTime)}`;
+    document.getElementById('stopButton').disabled = true;
+    updateTotals();
+    saveToLocalStorage();
+    setTimeout(() => {
+        if(confirm('Net stopped. Export the net log now?')) exportData();
+    }, 300);
+}
+
+function clearNet() {
+    if(!confirm("Clear current net and start fresh? (Roster kept)")) return;
+    checkins = []; startTime = endTime = null;
+    if(timerInterval) clearInterval(timerInterval);
+    document.getElementById('netStatus').textContent = 'Net cleared — Ready for new net';
+    document.getElementById('stopButton').disabled = true;
+    renderTable(); updateTotals(); saveToLocalStorage();
+}
+
+function addOrUpdateCheckIn() {
+    if(!startTime) return alert('Start the net first!');
+    let cs = callsignInput.value.trim().toUpperCase();
+    if(!cs) return alert('Callsign required');
+    if(checkins.some(c => c.callsign === cs)) return alert('Already checked in');
+
+    const name = document.getElementById('name').value.trim();
+    const comments = document.getElementById('comments').value.trim();
+
+    checkins.push({callsign: cs, name, comments});
+    if(!cs.includes('?')) roster.set(cs, {name, comments});
+
+    renderTable(); renderRoster(); updateTotals(); clearInputs(); saveToLocalStorage();
+    setTimeout(() => callsignInput.focus(), 10);
+}
+
+function clearInputs() {
+    callsignInput.value = ''; document.getElementById('name').value = ''; document.getElementById('comments').value = '';
+    suggestionsDiv.style.display = 'none'; renderRoster();
+}
+
+function deleteCheckIn(i) {
+    if(confirm('Delete this check-in?')) {
+        checkins.splice(i,1);
+        renderTable(); updateTotals(); saveToLocalStorage();
+    }
+}
+
+// ==================== RENDER TABLE ====================
+function renderTable() {
+    const tbody = document.querySelector('#checkinsTable tbody');
+    tbody.innerHTML = '';
+    checkins.forEach((c, i) => {
+        const tr = document.createElement('tr');
+        const lineNum = i + 1;
+        if(editingIndex === i) {
+            tr.className = 'editing';
+            tr.innerHTML = `
+                <td class="number">${lineNum}</td>
+                <td><strong>${c.callsign}</strong></td>
+                <td><input class="edit-name edit-input" value="${c.name}" onblur="saveInlineEdit(${i})" onkeydown="if(event.key==='Enter') saveInlineEdit(${i})"></td>
+                <td><input class="edit-comments edit-input" value="${c.comments}" onblur="saveInlineEdit(${i})" onkeydown="if(event.key==='Enter') saveInlineEdit(${i})"></td>
+                <td>
+                    <button onclick="saveInlineEdit(${i})">Save</button>
+                    <button onclick="cancelInlineEdit()">Cancel</button>
+                    <button onclick="deleteCheckIn(${i})">Del</button>
+                </td>`;
+        } else {
+            tr.innerHTML = `
+                <td class="number">${lineNum}</td>
+                <td><strong>${c.callsign}</strong></td>
+                <td>${c.name}</td>
+                <td>${c.comments}</td>
+                <td>
+                    <button onclick="startInlineEdit(${i})">Edit</button>
+                    <button onclick="moveEntry(${i})">Move to #</button>
+                    <button onclick="deleteCheckIn(${i})">Del</button>
+                </td>`;
+        }
+        tbody.appendChild(tr);
+    });
+}
+
+function renderRoster() {
+    const list = document.getElementById('rosterList');
+    list.innerHTML = roster.size === 0 ? '<em style="color:#888;">No roster loaded</em>' : '';
+    const filter = callsignInput.value.trim().toUpperCase();
+    let filtered = [...roster.keys()];
+    if(filter) filtered = filtered.filter(c => c.includes(filter)).sort((a,b)=>a.startsWith(filter)?-1:b.startsWith(filter)?1:0);
+    else filtered.sort();
+
+    filtered.forEach(call => {
+        const info = roster.get(call);
+        const div = document.createElement('div');
+        div.className = 'roster-call';
+        div.textContent = call;
+        div.title = `${info.name||''} — ${info.comments||''}`;
+        div.onclick = () => {
+            callsignInput.value = call;
+            document.getElementById('name').value = info.name||'';
+            document.getElementById('comments').value = info.comments||'';
+            addOrUpdateCheckIn();
+        };
+        div.oncontextmenu = e => { e.preventDefault(); if(confirm(`Remove ${call}?`)){ roster.delete(call); renderRoster(); saveToLocalStorage(); }};
+        list.appendChild(div);
+    });
+}
+
+function exportData() {
+    const data = { nco, startTime: startTime?.toISOString(), endTime: endTime?.toISOString(), checkins, roster: Array.from(roster.entries()).map(([c,i])=>({callsign:c,...i})) };
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+    const a = document.createElement('a'); 
+    a.href = URL.createObjectURL(blob); 
+    const now = new Date();
+    const dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+    a.download = `net_${nco||'unknown'}_${dateStr}.json`; 
+    a.click();
+}
+
+function importData() {
+    const file = document.getElementById('importFile').files[0];
+    if(!file) return alert('Select file');
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const d = JSON.parse(e.target.result);
+            if(!confirm('Replace current net?')) return;
+            nco = (d.nco || '').toUpperCase();
+            startTime = d.startTime ? new Date(d.startTime) : null;
+            endTime = d.endTime ? new Date(d.endTime) : null;
+            checkins = d.checkins || [];
+            roster.clear();
+            (d.roster || []).forEach(r => {
+                const cs = (r.callsign || '').toUpperCase();
+                if(cs) roster.set(cs, {name:r.name||'', comments:r.comments||''});
+            });
+            document.getElementById('nco').value = nco;
+            document.getElementById('netStatus').textContent = startTime ? `Imported by ${nco}` : 'Net imported';
+            document.getElementById('stopButton').disabled = !startTime || !!endTime;
+            if(startTime && !endTime) timerInterval = setInterval(updateTotals,1000);
+            renderTable(); renderRoster(); updateTotals(); saveToLocalStorage();
+            alert('Import successful!');
+        } catch(err){ alert('Import failed: '+err.message); }
+    };
+    reader.readAsText(file);
+}
+
+function importRoster() {
+    const file = document.getElementById('rosterFile').files[0];
+    if(!file) return alert('Select file');
+    const reader = new FileReader();
+    reader.onload = e => {
+        try {
+            const d = JSON.parse(e.target.result);
+            let added = 0;
+            (d.roster || d.checkins || []).forEach(entry => {
+                const cs = (entry.callsign || '').toUpperCase();
+                if(cs && !roster.has(cs)) {
+                    roster.set(cs, {name:entry.name||'', comments:entry.comments||''});
+                    added++;
+                }
+            });
+            renderRoster(); saveToLocalStorage();
+            alert(`Added ${added} new stations. Total: ${roster.size}`);
+        } catch(err){ alert('Error: '+err.message); }
+    };
+    reader.readAsText(file);
+}
+
+function updateTotals() {
+    document.getElementById('totalCheckins').textContent = checkins.length;
+    if(!startTime) return;
+    const now = endTime || new Date();
+    const min = Math.floor((now - startTime)/60000);
+    document.getElementById('netDuration').textContent = min;
+    const total = checkins.length * min;
+    document.getElementById('operatorTime').textContent = `${Math.floor(total/60).toString().padStart(2,'0')}:${(total%60).toString().padStart(2,'0')}`;
+}
+
+function printLog(){ window.print(); }
+
+// ==================== INIT ====================
+if (loadFromLocalStorage()) {
+    document.getElementById('nco').value = nco;
+    document.getElementById('netStatus').textContent = startTime ? `Restored — ${localTimeStr(startTime)} by ${nco}` : 'Net restored';
+    document.getElementById('stopButton').disabled = !startTime || !!endTime;
+    if(startTime && !endTime) timerInterval = setInterval(updateTotals, 1000);
+}
+
+renderTable();
+renderRoster();
+updateTotals();
+callsignInput.focus();
+
+console.log("✅ Ham Net Logger v9.4 — NCO field no longer changed on Start Net");
+</script>
+</body>
+</html>
