@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Daily Journal (Encrypted)</title>
+    <title>Daily Journal (Encrypted - IndexedDB)</title>
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -187,7 +187,6 @@
             <input type="password" id="password-input" placeholder="Password" autofocus>
             <div id="password-error"></div>
             <button id="password-submit">Unlock</button>
-            <button id="password-set" class="hidden">Set Password</button>
         </div>
     </div>
 
@@ -246,9 +245,56 @@
     </div>
 
     <script>
+        // ========== INDEXEDDB HELPERS ==========
+        const DB_NAME = 'EncryptedJournalDB';
+        const STORE_NAME = 'journal';
+        let db = null;
+
+        function openDatabase() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, 1);
+
+                request.onupgradeneeded = (event) => {
+                    const database = event.target.result;
+                    if (!database.objectStoreNames.contains(STORE_NAME)) {
+                        database.createObjectStore(STORE_NAME);
+                    }
+                };
+
+                request.onsuccess = (event) => {
+                    db = event.target.result;
+                    resolve(db);
+                };
+
+                request.onerror = (event) => {
+                    reject('IndexedDB error: ' + event.target.errorCode);
+                };
+            });
+        }
+
+        function idbSet(key, value) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.put(value, key);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        function idbGet(key) {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.get(key);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
         // ========== ENCRYPTION HELPERS ==========
         let journal = {};
-        let cryptoKey = null;          // AES key held in memory only
+        let cryptoKey = null;
         let currentSalt = null;
 
         function arrayBufferToBase64(buffer) {
@@ -328,20 +374,19 @@
                 salt: arrayBufferToBase64(currentSalt),
                 ...encrypted
             };
-            localStorage.setItem('journal_encrypted', JSON.stringify(payload));
+            await idbSet('encryptedJournal', payload);
         }
 
         // ========== PASSWORD UI ==========
         const overlay = document.getElementById('password-overlay');
         const passwordInput = document.getElementById('password-input');
         const passwordSubmit = document.getElementById('password-submit');
-        const passwordSetBtn = document.getElementById('password-set');
         const passwordTitle = document.getElementById('password-title');
         const passwordMessage = document.getElementById('password-message');
         const passwordError = document.getElementById('password-error');
 
         async function unlockWithPassword(password) {
-            const stored = localStorage.getItem('journal_encrypted');
+            const stored = await idbGet('encryptedJournal');
 
             if (!stored) {
                 // First time - create new encrypted journal
@@ -355,10 +400,9 @@
             }
 
             try {
-                const payload = JSON.parse(stored);
-                currentSalt = new Uint8Array(base64ToArrayBuffer(payload.salt));
+                currentSalt = new Uint8Array(base64ToArrayBuffer(stored.salt));
                 cryptoKey = await deriveKey(password, currentSalt);
-                journal = await decryptData(payload, cryptoKey);
+                journal = await decryptData(stored, cryptoKey);
                 overlay.classList.add('hidden');
                 initApp();
             } catch (err) {
@@ -661,12 +705,16 @@
         });
 
         // ========== START ==========
-        // Check if we already have encrypted data
-        if (!localStorage.getItem('journal_encrypted')) {
-            passwordTitle.textContent = 'Create Password';
-            passwordMessage.textContent = 'This is the first time. Choose a password to protect your journal.';
-            passwordSubmit.textContent = 'Create & Unlock';
-        }
+        openDatabase().then(async () => {
+            const existing = await idbGet('encryptedJournal');
+            if (!existing) {
+                passwordTitle.textContent = 'Create Password';
+                passwordMessage.textContent = 'This is the first time. Choose a password to protect your journal.';
+                passwordSubmit.textContent = 'Create & Unlock';
+            }
+        }).catch(err => {
+            alert('Failed to open database: ' + err);
+        });
     </script>
 </body>
 </html>
