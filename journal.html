@@ -438,7 +438,7 @@
             alert('Password changed successfully.');
         });
 
-        // ========== ORIGINAL APP LOGIC ==========
+        // ========== APP LOGIC ==========
         const dateInput = document.getElementById('date');
         const entryTextarea = document.getElementById('entry');
         const todayButton = document.getElementById('todayBtn');
@@ -490,6 +490,7 @@
             generateCalendar(currentYear, currentMonth);
         });
 
+        // Auto-save to IndexedDB while typing
         let autoSaveTimeout;
         entryTextarea.addEventListener('input', () => {
             clearTimeout(autoSaveTimeout);
@@ -666,7 +667,7 @@
             });
         }
 
-        // ===== Local date helper =====
+        // Local date helper
         function getLocalDateString() {
             const now = new Date();
             const year = now.getFullYear();
@@ -675,8 +676,8 @@
             return `${year}-${month}-${day}`;
         }
 
-        // ===== Export (decrypted) =====
-        function exportJournal(silent = false) {
+        // Manual Export only
+        function exportJournal() {
             saveEntry();
 
             const blob = new Blob([JSON.stringify(journal, null, 2)], { type: 'application/json' });
@@ -688,21 +689,7 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-
-            if (!silent) {
-                console.log('Journal exported');
-            }
         }
-
-        // Quiet auto-export every 10 minutes
-        setInterval(() => {
-            if (cryptoKey) exportJournal(true);
-        }, 10 * 60 * 1000);
-
-        // Export on close
-        window.addEventListener('beforeunload', () => {
-            if (cryptoKey) exportJournal(true);
-        });
 
         // ========== START ==========
         openDatabase().then(async () => {
