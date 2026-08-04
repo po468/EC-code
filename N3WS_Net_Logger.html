@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>N3WS Net Logger v1.9</title>
+  <title>N3WS Net Logger v2.0</title>
   <style>
     :root {
       --bg: #f4f6f8;
@@ -500,10 +500,11 @@
   <header>
     <div class="logo">
       N3WS Net Logger
-      <span class="ver">v1.9</span>
+      <span class="ver">v2.0</span>
     </div>
     <div class="header-actions">
       <button id="btnTheme" class="ghost icon-btn" title="Toggle light/dark mode">🌓</button>
+      <button id="btnHelp" class="ghost" title="How to use this logger">? Help</button>
       <button id="btnSettings" class="ghost" title="QRZ credentials & options">⚙ Settings</button>
       <button id="btnExport" class="ghost">⬇ Export</button>
       <button id="btnImport" class="ghost">⬆ Import</button>
@@ -614,7 +615,7 @@
   </main>
 
   <footer>
-    N3WS Net Logger v1.9 · Data stored only in this browser · Export regularly
+    N3WS Net Logger v2.0 · Data stored only in this browser · Export regularly · ? Help for instructions
   </footer>
 
   <div class="toast" id="toast"></div>
@@ -628,7 +629,7 @@
       </div>
       <div class="modal-body">
         <p style="font-size:0.9rem;color:var(--muted);margin-bottom:14px;">
-          QRZ.com XML Data subscription is optional. Browser CORS usually blocks the API; Callook.info is used as a free fallback for US callsigns.
+          QRZ.com XML Data subscription is optional. When enabled, <strong>Tab</strong> (or leaving the callsign field) looks up <em>new</em> callsigns automatically. Callsigns already in the roster are filled from stored data instead. Browser CORS often blocks QRZ; Callook.info is used as a free fallback for US callsigns.
         </p>
         <div class="form-row">
           <label for="qrzUser">QRZ Username</label>
@@ -647,6 +648,62 @@
       <div class="modal-footer">
         <button class="ghost" id="cancelSettings">Cancel</button>
         <button class="primary" id="saveSettings">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help Modal -->
+  <div class="modal-overlay" id="helpModal" style="display:none;">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-header">
+        <span>How to use N3WS Net Logger</span>
+        <button class="ghost icon-btn" id="closeHelp">✕</button>
+      </div>
+      <div class="modal-body" style="font-size:0.92rem;line-height:1.55;max-height:70vh;overflow-y:auto;">
+        <h3 style="margin:0 0 8px;font-size:1rem;">Quick start</h3>
+        <ol style="margin:0 0 14px;padding-left:1.3em;">
+          <li>Enter the <strong>Net Control Station (NCS)</strong> callsign first and press <strong>Enter</strong> or <strong>+ Add</strong>.</li>
+          <li>Click <strong>▶ Start Net</strong> (enabled only after the first check-in).</li>
+          <li>Add more stations the same way. Click <strong>■ Stop Net</strong> when finished (auto-exports a JSON file).</li>
+        </ol>
+
+        <h3 style="margin:0 0 8px;font-size:1rem;">Entering callsigns</h3>
+        <ul style="margin:0 0 14px;padding-left:1.3em;">
+          <li><strong>Partial match:</strong> Type part of a call (e.g. <code>STZ</code>) — matching roster entries appear as chips under the form and the right-side roster filters. Click a chip (or press Enter if only one match) to add it immediately.</li>
+          <li><strong>Tab / blur:</strong> If the call is <em>already in the roster</em>, Name / Location / Comment fill from stored data. If it is <em>new</em>, a lookup runs (QRZ if configured, otherwise Callook for US calls).</li>
+          <li><strong>Enter</strong> in any of the four fields (Callsign, Name, Location, Comment) adds the check-in.</li>
+          <li>Duplicate callsigns in the same net are blocked.</li>
+        </ul>
+
+        <h3 style="margin:0 0 8px;font-size:1rem;">QRZ login</h3>
+        <p style="margin:0 0 14px;">
+          Click <strong>⚙ Settings</strong> in the header. Enter your QRZ username and password (XML Data subscription recommended). Credentials stay only in this browser. If QRZ is blocked by the browser, Callook.info is used automatically for US callsigns. Use the 🔍 button anytime for a manual lookup.
+        </p>
+
+        <h3 style="margin:0 0 8px;font-size:1rem;">Editing the check-in list</h3>
+        <ul style="margin:0 0 14px;padding-left:1.3em;">
+          <li><strong>Click any field</strong> (callsign, name, location, comment) to edit it in place. Press Enter or click away to save; Escape cancels.</li>
+          <li><strong>Move to</strong> — type a line number next to an entry to reorder it. Line 1 is always NCS.</li>
+          <li><strong>Checkbox</strong> on the left = acknowledge the check-in. Use <strong>Clear Acks</strong> in the roster header to reset all.</li>
+          <li><strong>✕</strong> deletes an entry.</li>
+        </ul>
+
+        <h3 style="margin:0 0 8px;font-size:1rem;">Roster (right panel)</h3>
+        <ul style="margin:0 0 14px;padding-left:1.3em;">
+          <li>Automatically stores stations from every check-in.</li>
+          <li><strong>Click a roster entry</strong> to add it straight to the current net.</li>
+          <li><strong>⬆ Roster only</strong> imports names from a previous export without loading a whole net.</li>
+        </ul>
+
+        <h3 style="margin:0 0 8px;font-size:1rem;">Tips</h3>
+        <ul style="margin:0;padding-left:1.3em;">
+          <li>Total time = elapsed net time × number of check-ins (shown as hours + minutes and total minutes).</li>
+          <li>Export / Import keep your net and roster. Data is stored only in this browser — export regularly.</li>
+          <li>Theme toggle (🌓) switches light / dark mode.</li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button class="primary" id="closeHelpBtn">Got it</button>
       </div>
     </div>
   </div>
@@ -684,7 +741,7 @@
   </div>
 
   <script>
-    const VERSION = "1.7";
+    const VERSION = "2.0";
     const STORAGE_KEY = "n3wsNetLogger_v1";
 
     // ---------- State ----------
@@ -1410,6 +1467,13 @@
       $("closeSettings").addEventListener("click", () => $("settingsModal").style.display = "none");
       $("cancelSettings").addEventListener("click", () => $("settingsModal").style.display = "none");
       $("saveSettings").addEventListener("click", saveSettings);
+
+      $("btnHelp").addEventListener("click", () => { $("helpModal").style.display = "flex"; });
+      $("closeHelp").addEventListener("click", () => { $("helpModal").style.display = "none"; });
+      $("closeHelpBtn").addEventListener("click", () => { $("helpModal").style.display = "none"; });
+      $("helpModal").addEventListener("click", (e) => {
+        if (e.target === $("helpModal")) $("helpModal").style.display = "none";
+      });
 
       $("btnStart").addEventListener("click", startNet);
       $("btnStop").addEventListener("click", stopNet);
